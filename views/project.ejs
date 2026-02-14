@@ -1,0 +1,367 @@
+<%- include('partials/header') %>
+
+<div class="container mt-5 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><span class="badge bg-primary me-2">Project</span> Dashboard</h2>
+            <p class="text-muted mb-0">ID: <%= project.id %></p>
+        </div>
+        <div>
+            <a href="/projects/<%= project.id %>/export" class="btn btn-success shadow-sm" id="exportBtn" style="display:none;">
+                <i class="bi bi-file-earmark-excel-fill"></i> Download Report (.xlsx)
+            </a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card p-4 h-100 shadow-sm border-0 bg-light">
+                <h6 class="text-uppercase text-muted fw-bold mb-2">Old Site (Source)</h6>
+                <code class="fs-5 text-primary text-break"><%= project.oldSiteUrl %></code>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card p-4 h-100 shadow-sm border-0 bg-light">
+                <h6 class="text-uppercase text-muted fw-bold mb-2">New Site (Target)</h6>
+                <code class="fs-5 text-success text-break"><%= project.newSiteUrl %></code>
+            </div>
+        </div>
+    </div>
+
+    <div id="initialState" class="text-center py-5">
+        <div class="card p-5 border-0 shadow-sm">
+            <h4 class="mb-3">Ready to Analyze?</h4>
+            <p class="text-muted mb-4">This will crawl both sites and stream comparison results in real-time.</p>
+            <div>
+                <button id="startCrawlBtn" class="btn btn-primary btn-lg px-5 shadow">
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    Start Analysis
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="resultsArea" style="display:none;">
+        
+        <div class="alert alert-info border-0 shadow-sm mb-4" id="progressAlert">
+            <div class="d-flex align-items-center">
+                 <div class="spinner-border spinner-border-sm text-info me-3" role="status"></div>
+                 <div>
+                     <strong>Analysis in Progress...</strong>
+                     <span id="progressText">Crawling and comparing pages...</span>
+                 </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards (Clickable) -->
+        <div class="row mb-4 g-3">
+            <div class="col-md-3">
+                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-primary cursor-pointer" onclick="filterTable('all')">
+                    <h3 class="display-5 fw-bold text-primary mb-0" id="summaryTotalOld">0</h3>
+                    <small class="text-uppercase text-muted fw-bold">Total Scanned</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-danger cursor-pointer" onclick="filterTable('Missing')">
+                    <h3 class="display-5 fw-bold text-danger mb-0" id="summaryMissing">0</h3>
+                    <small class="text-uppercase text-muted fw-bold">404 / Missing</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-success cursor-pointer" onclick="filterTable('New')">
+                    <h3 class="display-5 fw-bold text-success mb-0" id="summaryNew">0</h3>
+                    <small class="text-uppercase text-muted fw-bold">New Pages</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-warning cursor-pointer" onclick="filterTable('Meta')">
+                    <h3 class="display-5 fw-bold text-warning mb-0" id="summaryMeta">0</h3>
+                    <small class="text-uppercase text-muted fw-bold">Meta Issues</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold" id="tableTitle">All Issues</h5>
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary btn-sm active" onclick="filterTable('all')" id="btn-filter-all">All</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="filterTable('Missing')" id="btn-filter-Missing">Missing</button>
+                    <button class="btn btn-outline-success btn-sm" onclick="filterTable('New')" id="btn-filter-New">New</button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="filterTable('Meta')" id="btn-filter-Meta">Meta Issues</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="resultsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 35%">Old URL</th>
+                                <th style="width: 35%">New URL</th>
+                                <th style="width: 10%">Status</th>
+                                <th style="width: 20%">Issues</th>
+                            </tr>
+                        </thead>
+                        <tbody class="border-top-0" id="resultsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Meta Comparison Modal -->
+<div class="modal fade" id="metaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Meta Comparison</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+            <div class="col-md-6 border-end">
+                <h6 class="text-primary mb-3">Old Site</h6>
+                <div id="oldMetaContent"></div>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-success mb-3">New Site</h6>
+                <div id="newMetaContent"></div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+    .cursor-pointer { cursor: pointer; transition: transform 0.2s; }
+    .cursor-pointer:hover { transform: scale(1.02); }
+    .diff-highlight { background-color: #fff3cd; }
+</style>
+
+<script>
+    const projectId = '<%= project.id %>';
+    const startBtn = document.getElementById('startCrawlBtn');
+    const initialState = document.getElementById('initialState');
+    const resultsArea = document.getElementById('resultsArea');
+    const progressAlert = document.getElementById('progressAlert');
+    const exportBtn = document.getElementById('exportBtn');
+    const tbody = document.getElementById('resultsTableBody');
+
+    // Counters
+    let countTotal = 0;
+    let countMissing = 0;
+    let countNew = 0;
+    let countMeta = 0;
+
+    // Data Store for Modal
+    const rowDataStore = new Map();
+
+    startBtn.addEventListener('click', () => {
+        initialState.style.display = 'none';
+        resultsArea.style.display = 'block';
+        
+        // Clear previous results
+        tbody.innerHTML = '';
+        countTotal = 0;
+        countMissing = 0;
+        countNew = 0;
+        countMeta = 0;
+        updateCounters();
+        
+        startStreaming();
+    });
+
+    function startStreaming() {
+        const eventSource = new EventSource(`/projects/${projectId}/stream`);
+        
+        eventSource.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            
+            if (msg.type === 'result') {
+                addResultRow(msg.result);
+            } else if (msg.type === 'complete') {
+                eventSource.close();
+                finishAnalysis();
+            } else if (msg.type === 'error') {
+                eventSource.close();
+                alert('Error: ' + msg.message);
+                progressAlert.className = 'alert alert-danger border-0 shadow-sm mb-4';
+                progressAlert.innerHTML = `<strong>Error:</strong> ${msg.message}`;
+            }
+        };
+
+        eventSource.onerror = (err) => {
+            console.error("EventSource failed:", err);
+            eventSource.close();
+        };
+    }
+
+    function addResultRow(result) {
+        // Store data for modal
+        const rowId = Math.random().toString(36).substr(2, 9);
+        rowDataStore.set(rowId, result);
+
+        // Update counters
+        countTotal++;
+        if (result.status === 'Missing') countMissing++;
+        if (result.status === 'New') countNew++;
+        if (result.status === 'Matched' && result.issues.length > 0) countMeta++;
+
+        updateCounters();
+
+        // Create Row
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-status', result.status);
+        tr.setAttribute('data-has-meta', (result.status === 'Matched' && result.issues.length > 0) ? 'true' : 'false');
+        
+        // Hide "Matched" rows with no issues by default?
+        // User requirement: "I only needed new , 404, missing, meta issues... we don't needed matched one"
+        if (result.status === 'Matched' && result.issues.length === 0) {
+            tr.style.display = 'none'; // Hidden by default
+            tr.classList.add('row-matched-clean');
+        }
+
+        let actionHtml = '';
+        let issuesHtml = '';
+        
+        if (result.status === 'Matched' && result.issues.length > 0) {
+             // For Meta Issues: Show badge count + View Details button
+             // Hide issue text from main table, show in modal
+             const count = result.issues.length;
+             issuesHtml = `<span class="badge bg-warning text-dark me-2">${count} Issues</span>`;
+             actionHtml = `<button class="btn btn-sm btn-outline-primary" onclick="openMetaModal('${rowId}')">View Details</button>`;
+        } else {
+             // For other errors (Missing/New), show them inline
+             issuesHtml = result.issues.map(i => `<span class="badge bg-danger-subtle text-danger border border-danger-subtle mb-1">${i}</span>`).join(' ');
+        }
+
+        tr.innerHTML = `
+            <td><small class="text-break font-monospace text-muted">${result.oldUrl || '-'}</small></td>
+            <td><small class="text-break font-monospace text-muted">${result.newUrl || '-'}</small></td>
+            <td>${getStatusBadge(result.status)}</td>
+            <td>
+                ${issuesHtml}
+                ${actionHtml}
+            </td>
+        `;
+
+        // Prepend new rows to show latest first? Or append?
+        // User said "completed pages and then below manner". Let's append.
+        tbody.appendChild(tr);
+    }
+
+    function finishAnalysis() {
+        progressAlert.className = 'alert alert-success border-0 shadow-sm mb-4';
+        progressAlert.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i><strong>Analysis Complete!</strong> found ${countTotal} URLs.`;
+        exportBtn.style.display = 'inline-block';
+        
+        // Auto-filter to show only issues if "all" was selected?
+        // The user said "I only needed new, 404..."
+        // We already hid clean matched rows.
+    }
+
+    function updateCounters() {
+        document.getElementById('summaryTotalOld').innerText = countTotal;
+        document.getElementById('summaryMissing').innerText = countMissing;
+        document.getElementById('summaryNew').innerText = countNew;
+        document.getElementById('summaryMeta').innerText = countMeta;
+    }
+
+    function getStatusBadge(status) {
+        let color = 'secondary';
+        let icon = '';
+        if (status === 'Matched') { color = 'success'; icon = 'bi-check-circle-fill'; }
+        if (status === 'Missing') { color = 'danger'; icon = 'bi-x-circle-fill'; }
+        if (status === 'New') { color = 'info'; icon = 'bi-plus-circle-fill'; }
+        if (status === 'Error') { color = 'warning'; icon = 'bi-exclamation-triangle-fill'; }
+        return `<span class="badge bg-${color}"><i class="bi ${icon} me-1"></i>${status}</span>`;
+    }
+
+    // Filter Logic
+    window.filterTable = function(filterType) {
+        // Update active button
+        document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-filter-${filterType}`).classList.add('active');
+
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const status = row.getAttribute('data-status');
+            const hasMeta = row.getAttribute('data-has-meta') === 'true';
+            const isCleanMatched = row.classList.contains('row-matched-clean');
+
+            if (filterType === 'all') {
+                // Show everything EXCEPT clean matched (per user request to generally hide them)
+                // But if they click "All", maybe they want EVERYTHING? 
+                // "when i click all , i got all the list like this manner" -> implies full list.
+                // But usually "matched" is noise. Let's show everything for "All".
+                row.style.display = '';
+            } else if (filterType === 'Missing') {
+                row.style.display = (status === 'Missing' || status === 'Error') ? '' : 'none';
+            } else if (filterType === 'New') {
+                row.style.display = (status === 'New') ? '' : 'none';
+            } else if (filterType === 'Meta') {
+                row.style.display = hasMeta ? '' : 'none';
+            }
+        });
+    }
+
+    // Modal Logic
+    window.openMetaModal = function(rowId) {
+        const data = rowDataStore.get(rowId);
+        if (!data) return;
+
+        const oldD = data.oldData || {};
+        const newD = data.newData || {};
+        const issues = data.issues || [];
+
+        // Helper to check if a field has an issue
+        const hasIssue = (type) => issues.some(i => i.toLowerCase().includes(type.toLowerCase()));
+        const getHighlight = (type) => hasIssue(type) ? 'table-danger' : '';
+
+        // Render Issues List at top
+        const issuesListHtml = issues.length > 0 
+            ? `<div class="alert alert-warning mb-3">
+                 <h6 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Issues Detected:</h6>
+                 <ul class="mb-0">
+                    ${issues.map(i => `<li>${i}</li>`).join('')}
+                 </ul>
+               </div>`
+            : '';
+
+        function renderMetaTable(d, isOld) {
+            return `
+                <table class="table table-sm table-bordered">
+                    <tr class="${getHighlight('Title')}"><th>Title</th><td>${d.title || '<em class="text-muted">Empty</em>'}</td></tr>
+                    <tr class="${getHighlight('Description')}"><th>Description</th><td>${d.description || '<em class="text-muted">Empty</em>'}</td></tr>
+                    <tr class="${getHighlight('H1')}"><th>H1</th><td>${d.h1 || '<em class="text-muted">Empty</em>'}</td></tr>
+                    <tr class="${getHighlight('Canonical')}"><th>Canonical</th><td>${d.canonical || '<em class="text-muted">Empty</em>'}</td></tr>
+                    <tr class="${getHighlight('noindex')}"><th>Robots</th><td>${d.robots || '<em class="text-muted">Empty</em>'}</td></tr>
+                </table>
+            `;
+        }
+        
+        const modalBody = document.querySelector('.modal-body');
+        modalBody.innerHTML = `
+            ${issuesListHtml}
+            <div class="row">
+                <div class="col-md-6 border-end">
+                    <h6 class="text-primary mb-3">Old Site</h6>
+                    ${renderMetaTable(oldD, true)}
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-success mb-3">New Site</h6>
+                    ${renderMetaTable(newD, false)}
+                </div>
+            </div>
+        `;
+
+        const modal = new bootstrap.Modal(document.getElementById('metaModal'));
+        modal.show();
+    }
+</script>
+
+<%- include('partials/footer') %>
