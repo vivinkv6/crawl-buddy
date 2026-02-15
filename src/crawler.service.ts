@@ -10,6 +10,7 @@ export interface PageData {
   description: string;
   h1: string;
   keywords: string;
+  schemas: string[];
   canonical: string;
   robots: string;
   links: string[]; // Outgoing links
@@ -124,6 +125,7 @@ export class CrawlerService {
         let description = '';
         let h1 = '';
         let keywords = '';
+        const schemas: string[] = [];
         let canonical = '';
         let robots = '';
         const links: string[] = [];
@@ -136,6 +138,34 @@ export class CrawlerService {
           keywords = $('meta[name="keywords"]').attr('content')?.trim() || '';
           canonical = $('link[rel="canonical"]').attr('href')?.trim() || '';
           robots = $('meta[name="robots"]').attr('content')?.trim() || '';
+          
+          // Schema Extraction
+          $('script[type="application/ld+json"]').each((_, element) => {
+             try {
+                 const json = JSON.parse($(element).html() || '{}');
+                 const extractTypes = (obj: any): string[] => {
+                     if (!obj) return [];
+                     if (Array.isArray(obj)) return obj.flatMap(extractTypes);
+                     
+                     const types: string[] = [];
+                     if (obj['@type']) {
+                         if (Array.isArray(obj['@type'])) {
+                             types.push(...obj['@type']);
+                         } else {
+                             types.push(obj['@type']);
+                         }
+                     }
+                     if (obj['@graph'] && Array.isArray(obj['@graph'])) {
+                         types.push(...extractTypes(obj['@graph']));
+                     }
+                     return types;
+                 };
+                 const found = extractTypes(json);
+                 schemas.push(...found);
+             } catch (e) {
+                 // Ignore parse errors
+             }
+          });
           
           // Check for <base> tag
           const baseHref = $('base').attr('href');
@@ -167,6 +197,7 @@ export class CrawlerService {
           description,
           h1,
           keywords,
+          schemas: [...new Set(schemas)], // Unique schemas
           canonical,
           robots,
           links
@@ -182,6 +213,7 @@ export class CrawlerService {
           description: '',
           h1: '',
           keywords: '',
+          schemas: [],
           canonical: '',
           robots: '',
           links: []

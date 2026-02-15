@@ -569,16 +569,24 @@
              return '';
         };
 
-        const renderRow = (label, key) => `
+        const renderRow = (label, key) => {
+            let oldVal = oldD[key];
+            let newVal = newD[key];
+            
+            // Handle arrays (like schemas)
+            if (Array.isArray(oldVal)) oldVal = oldVal.join(', ');
+            if (Array.isArray(newVal)) newVal = newVal.join(', ');
+            
+            return `
             <tr>
                 <td class="fw-bold text-muted">${label}</td>
-                <td class="text-break">${oldD[key] || '<em class="text-muted">Empty</em>'}</td>
+                <td class="text-break">${oldVal || '<em class="text-muted">Empty</em>'}</td>
                 <td class="text-break">
-                    ${newD[key] || '<em class="text-muted">Empty</em>'}
+                    ${newVal || '<em class="text-muted">Empty</em>'}
                     ${getBadges(label)}
                 </td>
             </tr>
-        `;
+        `};
 
         const tableHtml = `
             <div class="table-responsive">
@@ -594,6 +602,7 @@
                         ${renderRow('Title', 'title')}
                         ${renderRow('Description', 'description')}
                         ${renderRow('Keywords', 'keywords')}
+                        ${renderRow('Schemas', 'schemas')}
                         ${renderRow('H1', 'h1')}
                         ${renderRow('Canonical', 'canonical')}
                         ${renderRow('Robots', 'robots')}

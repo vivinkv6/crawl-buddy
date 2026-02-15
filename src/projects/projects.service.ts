@@ -316,12 +316,25 @@ export class ProjectsService {
             const newDesc = clean(newPage.description);
             const oldKeywords = clean(oldPage.keywords);
             const newKeywords = clean(newPage.keywords);
+            const oldSchemas = (oldPage.schemas || []).sort();
+            const newSchemas = (newPage.schemas || []).sort();
             const oldH1 = clean(oldPage.h1);
             const newH1 = clean(newPage.h1);
 
             if (oldTitle && oldTitle !== newTitle) issues.push('Title mismatch');
             if (oldDesc && oldDesc !== newDesc) issues.push('Description mismatch');
             if (oldKeywords && oldKeywords !== newKeywords) issues.push('Keywords mismatch');
+            
+            // Schema Checks
+            if (JSON.stringify(oldSchemas) !== JSON.stringify(newSchemas)) {
+                const missing = oldSchemas.filter(s => !newSchemas.includes(s));
+                if (missing.length > 0) {
+                    issues.push(`Missing Schema: ${missing.join(', ')}`);
+                } else {
+                    issues.push('Schema mismatch');
+                }
+            }
+
             if (oldH1 && oldH1 !== newH1) issues.push('H1 mismatch');
             
             if (oldPage.canonical && oldPage.canonical !== newPage.canonical) {
