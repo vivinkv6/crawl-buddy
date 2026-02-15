@@ -606,22 +606,75 @@ export class ProjectsService {
     }
 
     // Single Sheet: "Crawl Report"
-    // Columns: Old Url, New Url, Status, Details
+    // Columns: Old Url, New Url, Status, Issues
     const reportData = filteredResults.map(r => ({
       'Old Url': r.oldUrl || '-',
       'New Url': r.newUrl || '-',
       'Status': r.status,
-      'Details': r.issues.length > 0 ? r.issues.join(', ') : 'No Issues'
+      'Issues Found': r.issues.length > 0 ? r.issues.join(', ') : 'No Issues',
+      
+      // Meta Title
+      'Old Title': r.oldData?.title || '-',
+      'New Title': r.newData?.title || '-',
+      'Title Match': r.oldData?.title === r.newData?.title ? '✅' : '❌',
+
+      // Meta Description
+      'Old Description': r.oldData?.description || '-',
+      'New Description': r.newData?.description || '-',
+      'Description Match': r.oldData?.description === r.newData?.description ? '✅' : '❌',
+
+      // H1
+      'Old H1': r.oldData?.h1 || '-',
+      'New H1': r.newData?.h1 || '-',
+      'H1 Match': r.oldData?.h1 === r.newData?.h1 ? '✅' : '❌',
+
+      // Keywords
+      'Old Keywords': r.oldData?.keywords || '-',
+      'New Keywords': r.newData?.keywords || '-',
+
+      // Canonical
+      'Old Canonical': r.oldData?.canonical || '-',
+      'New Canonical': r.newData?.canonical || '-',
+
+      // Open Graph
+      'Old OG Title': r.oldData?.ogTitle || '-',
+      'New OG Title': r.newData?.ogTitle || '-',
+      'Old OG Desc': r.oldData?.ogDescription || '-',
+      'New OG Desc': r.newData?.ogDescription || '-',
+      'Old OG Image': r.oldData?.ogImage || '-',
+      'New OG Image': r.newData?.ogImage || '-',
+
+      // Schemas
+      'Old Schemas': r.oldData?.schemas?.join(', ') || '-',
+      'New Schemas': r.newData?.schemas?.join(', ') || '-',
     }));
 
     const ws = XLSX.utils.json_to_sheet(reportData);
     
     // Auto-width for better readability (approximate)
     const wscols = [
-        { wch: 50 }, // Old Url
-        { wch: 50 }, // New Url
+        { wch: 60 }, // Old Url
+        { wch: 60 }, // New Url
         { wch: 15 }, // Status
-        { wch: 100 } // Details
+        { wch: 50 }, // Issues Found
+        
+        { wch: 40 }, // Old Title
+        { wch: 40 }, // New Title
+        { wch: 10 }, // Title Match
+
+        { wch: 40 }, // Old Desc
+        { wch: 40 }, // New Desc
+        { wch: 10 }, // Desc Match
+
+        { wch: 30 }, // Old H1
+        { wch: 30 }, // New H1
+        { wch: 10 }, // H1 Match
+        
+        { wch: 25 }, // Old Keywords
+        { wch: 25 }, // New Keywords
+        
+        { wch: 40 }, // Old Canonical
+        { wch: 40 }, // New Canonical
     ];
     ws['!cols'] = wscols;
 
