@@ -1,10 +1,18 @@
 # Crawl Buddy
 
-## Pre-Launch SEO Migration Validation
+## Your Safety Net for Website Migrations
 
-Crawl Buddy is a powerful, real-time SEO migration tool designed to validate site migrations before they go live. It crawls your old site and compares it against the new site structure to ensure a seamless transition, catching critical SEO issues like broken links and metadata mismatches.
+Moving to a new website shouldn't mean losing your hard-earned search rankings. Crawl Buddy acts as your personal migration assistant, automatically checking every page on your old site against your new one. It spots missing pages, broken links, and hidden errors instantly so you can fix them before your customers—or Google—ever notice.
 
 ### Key Features
+
+*   **Smart Comparison**: Instantly compares your old and new sites side-by-side.
+*   **Error Spotting**: Finds broken links (404s) and missing pages automatically.
+*   **SEO Protection**: Checks that titles and descriptions match to keep rankings safe.
+*   **Redirect Verification**: Ensures old links point to the right new locations.
+*   **Simple Reports**: Gives you clear, actionable lists of what needs fixing.
+
+### Technical Overview
 
 *   **Real-Time Comparison**: Streams crawl results instantly using Server-Sent Events (SSE), providing immediate feedback without waiting for the entire crawl to finish.
 *   **Comprehensive SEO Checks**:
