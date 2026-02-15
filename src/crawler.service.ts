@@ -12,6 +12,9 @@ export interface PageData {
   keywords: string;
   schemas: string[];
   canonical: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogImage: string;
   robots: string;
   links: string[]; // Outgoing links
 }
@@ -127,6 +130,9 @@ export class CrawlerService {
         let keywords = '';
         const schemas: string[] = [];
         let canonical = '';
+        let ogTitle = '';
+        let ogDescription = '';
+        let ogImage = '';
         let robots = '';
         const links: string[] = [];
 
@@ -137,6 +143,11 @@ export class CrawlerService {
           h1 = $('h1').first().text().trim();
           keywords = $('meta[name="keywords"]').attr('content')?.trim() || '';
           canonical = $('link[rel="canonical"]').attr('href')?.trim() || '';
+          
+          ogTitle = $('meta[property="og:title"]').attr('content')?.trim() || '';
+          ogDescription = $('meta[property="og:description"]').attr('content')?.trim() || '';
+          ogImage = $('meta[property="og:image"]').attr('content')?.trim() || '';
+
           robots = $('meta[name="robots"]').attr('content')?.trim() || '';
           
           // Schema Extraction
@@ -199,6 +210,9 @@ export class CrawlerService {
           keywords,
           schemas: [...new Set(schemas)], // Unique schemas
           canonical,
+          ogTitle,
+          ogDescription,
+          ogImage,
           robots,
           links
         };
@@ -215,6 +229,9 @@ export class CrawlerService {
           keywords: '',
           schemas: [],
           canonical: '',
+          ogTitle: '',
+          ogDescription: '',
+          ogImage: '',
           robots: '',
           links: []
         };

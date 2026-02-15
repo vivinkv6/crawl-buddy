@@ -7,17 +7,19 @@ Moving to a new website shouldn't mean losing your hard-earned search rankings. 
 ### Key Features
 
 *   **Smart Comparison**: Instantly compares your old and new sites side-by-side.
+*   **Deep SEO Analysis**: Checks **Keywords**, **Schema Markup**, **H1 Tags**, **Titles**, and **Descriptions**.
+*   **Redirect Intelligence**: Verifies if old links correctly redirect to the new site (301s).
 *   **Error Spotting**: Finds broken links (404s) and missing pages automatically.
-*   **SEO Protection**: Checks that titles and descriptions match to keep rankings safe.
-*   **Redirect Verification**: Ensures old links point to the right new locations.
 *   **Simple Reports**: Gives you clear, actionable lists of what needs fixing.
 
 ### Technical Overview
 
 *   **Real-Time Comparison**: Streams crawl results instantly using Server-Sent Events (SSE), providing immediate feedback without waiting for the entire crawl to finish.
 *   **Comprehensive SEO Checks**:
-    *   **Status Codes**: Identifies 404 errors, 500 server errors, and redirect chains.
-    *   **Meta Tag Validation**: Compares Title tags, Meta Descriptions, and H1 headers between old and new pages.
+    *   **Status Codes**: Identifies 404 errors, 500 server errors, and verifies 301 redirects.
+    *   **Meta Tag Validation**: Compares Title tags, Meta Descriptions, Keywords, and H1 headers.
+    *   **Social Media Validation**: Checks Open Graph (OG) Title, Description, and Image tags for social sharing.
+    *   **Schema Markup**: Detects and compares structured data (JSON-LD) types (e.g., FAQ, Organization).
     *   **Canonical Analysis**: Detects mismatches in canonical tags.
     *   **Orphan Page Detection**: Finds new pages on the destination site that don't exist on the source site.
 *   **Interactive Dashboard**:

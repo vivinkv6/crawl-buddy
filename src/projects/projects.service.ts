@@ -330,6 +330,12 @@ export class ProjectsService {
             const newDesc = clean(newPage.description);
             const oldKeywords = clean(oldPage.keywords);
             const newKeywords = clean(newPage.keywords);
+            const oldOgTitle = clean(oldPage.ogTitle);
+            const newOgTitle = clean(newPage.ogTitle);
+            const oldOgDesc = clean(oldPage.ogDescription);
+            const newOgDesc = clean(newPage.ogDescription);
+            const oldOgImage = clean(oldPage.ogImage);
+            const newOgImage = clean(newPage.ogImage);
             const oldSchemas = (oldPage.schemas || []).sort();
             const newSchemas = (newPage.schemas || []).sort();
             const oldH1 = clean(oldPage.h1);
@@ -338,6 +344,10 @@ export class ProjectsService {
             if (oldTitle && oldTitle !== newTitle) issues.push('Title mismatch');
             if (oldDesc && oldDesc !== newDesc) issues.push('Description mismatch');
             if (oldKeywords && oldKeywords !== newKeywords) issues.push('Keywords mismatch');
+
+            if (oldOgTitle && oldOgTitle !== newOgTitle) issues.push('OG Title mismatch');
+            if (oldOgDesc && oldOgDesc !== newOgDesc) issues.push('OG Description mismatch');
+            if (oldOgImage && oldOgImage !== newOgImage) issues.push('OG Image mismatch');
             
             // Schema Checks
             if (JSON.stringify(oldSchemas) !== JSON.stringify(newSchemas)) {
@@ -369,6 +379,9 @@ export class ProjectsService {
             if (oldTitle && !newTitle) issues.push('Missing Title on New');
             if (oldDesc && !newDesc) issues.push('Missing Description on New');
             if (oldKeywords && !newKeywords) issues.push('Missing Keywords on New');
+            if (oldOgTitle && !newOgTitle) issues.push('Missing OG Title on New');
+            if (oldOgDesc && !newOgDesc) issues.push('Missing OG Description on New');
+            if (oldOgImage && !newOgImage) issues.push('Missing OG Image on New');
             if (oldH1 && !newH1) issues.push('Missing H1 on New');
         }
       }
