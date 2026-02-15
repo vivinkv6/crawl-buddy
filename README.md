@@ -7,6 +7,7 @@ Moving to a new website shouldn't mean losing your hard-earned search rankings. 
 ### Key Features
 
 *   **Smart Comparison**: Instantly compares your old and new sites side-by-side.
+*   **Sitemap Integration**: Supports crawling via **Sitemap XML** (including nested sitemaps) for 100% page coverage.
 *   **Deep SEO Analysis**: Checks **Keywords**, **Schema Markup**, **H1 Tags**, **Titles**, and **Descriptions**.
 *   **Redirect Intelligence**: Verifies if old links correctly redirect to the new site (301s).
 *   **Error Spotting**: Finds broken links (404s) and missing pages automatically.
