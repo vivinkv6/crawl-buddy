@@ -293,9 +293,13 @@ export class ProjectsService {
         issues.push('URL missing on new site');
       } else {
          // Status Check
+         // If axios returns 200, it means it successfully reached a page (possibly via redirects).
+         // If it returns 3xx, it means it stopped at a redirect (shouldn't happen with default axios config unless loop).
+         // If it returns 4xx/5xx, it's an error.
+         
          if (newPage.status >= 300 && newPage.status < 400) {
-              status = 'Error'; 
-              issues.push(`Redirected (Status ${newPage.status})`);
+               status = 'Error'; 
+               issues.push(`Redirected (Status ${newPage.status})`);
          } else if (newPage.status !== 200) {
               status = 'Error';
               issues.push(`New site returns status ${newPage.status}`);
@@ -307,6 +311,16 @@ export class ProjectsService {
         // If Old Site is empty, we don't care if New Site is also empty (or has data, which is an improvement).
         
         if (newPage.status === 200) {
+            // Check for potential redirect mismatch
+            const finalPath = new URL(newPage.url).pathname.replace(/\/$/, '');
+            const expectedPath = new URL(expectedNewUrl).pathname.replace(/\/$/, '');
+            
+            if (finalPath !== expectedPath) {
+                 // It redirected. This is acceptable (Success), but we should note it.
+                 // We do NOT set status to 'Error'.
+                 issues.push(`Redirected to ${finalPath}`);
+            }
+
             // Helper to clean strings for comparison
             const clean = (str: string | undefined | null) => (str || '').trim();
 
