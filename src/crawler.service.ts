@@ -108,6 +108,58 @@ export class CrawlerService {
     this.logger.log(`Crawl finished for ${domain}. Total pages processed: ${visited.size}`);
   }
 
+  // New method to fetch URLs from Sitemap
+  // MODIFIED: Returns a structure { urls: string[], nestedSitemaps: string[] }
+  // This allows the caller (ProjectsService) to orchestrate the "One by One" processing
+  async fetchSitemapContent(sitemapUrl: string): Promise<{ urls: string[], nestedSitemaps: string[] }> {
+      try {
+          this.logger.log(`[Sitemap] Fetching: ${sitemapUrl}`);
+          
+          const response = await axios.get(sitemapUrl, {
+              timeout: 30000, 
+              headers: { 
+                  'User-Agent': 'Mozilla/5.0 (compatible; CrawlBuddy/1.0)'
+              }
+          });
+
+          const $ = cheerio.load(response.data, { xmlMode: true });
+          const urls: string[] = [];
+          const nestedSitemaps: string[] = [];
+
+          // 1. Check for Standard URLs
+          $('url > loc').each((_, el) => {
+              const url = $(el).text().trim();
+              if (url) urls.push(this.normalizeUrl(url));
+          });
+
+          // 2. Check for Nested Sitemaps
+          $('sitemap > loc').each((_, el) => {
+              const url = $(el).text().trim();
+              if (url) nestedSitemaps.push(url);
+          });
+
+          this.logger.log(`[Sitemap] ${sitemapUrl} -> Found ${urls.length} URLs, ${nestedSitemaps.length} Nested Sitemaps`);
+          
+          return { urls: [...new Set(urls)], nestedSitemaps };
+      } catch (error) {
+          this.logger.error(`[Sitemap] Failed to fetch ${sitemapUrl}: ${error.message}`);
+          return { urls: [], nestedSitemaps: [] };
+      }
+  }
+
+  // OLD method kept for compatibility but we will shift logic to Service
+  async fetchSitemapUrls(sitemapUrl: string): Promise<string[]> {
+      const { urls, nestedSitemaps } = await this.fetchSitemapContent(sitemapUrl);
+      // ... recursive logic here if needed, but we are moving it to ProjectsService for better control
+      // For now, let's just do a simple flat fetch here for fallback
+      const allUrls = [...urls];
+      for (const nested of nestedSitemaps) {
+          const child = await this.fetchSitemapContent(nested);
+          allUrls.push(...child.urls);
+      }
+      return [...new Set(allUrls)];
+  }
+
   // Helper to fetch a single page without crawling (for direct checks)
   async fetchPage(url: string): Promise<PageData> {
       try {
@@ -196,9 +248,9 @@ export class CrawlerService {
             }
           });
           
-          this.logger.debug(`Fetched ${url} -> ${links.length} links found.`);
+          // this.logger.debug(`Fetched ${url} -> ${links.length} links found.`);
         } else {
-            this.logger.debug(`Fetched ${url} -> Not HTML (${response.headers['content-type']})`);
+            // this.logger.debug(`Fetched ${url} -> Not HTML (${response.headers['content-type']})`);
         }
 
         return {

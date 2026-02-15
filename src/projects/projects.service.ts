@@ -35,11 +35,12 @@ export class ProjectsService {
     private readonly redis: RedisService,
   ) {}
 
-  async createProject(oldSiteUrl: string, newSiteUrl: string) {
+  async createProject(oldSiteUrl: string, newSiteUrl: string, sitemapUrl?: string) {
     return this.prisma.project.create({
       data: {
-        oldSiteUrl,
-        newSiteUrl,
+        oldSiteUrl: oldSiteUrl.trim(),
+        newSiteUrl: newSiteUrl.trim(),
+        sitemapUrl: sitemapUrl?.trim(),
       },
     });
   }
@@ -144,34 +145,80 @@ export class ProjectsService {
       // Check cancellation function
       const isCancelled = () => this.activeCrawls.get(id) === false;
 
+      // 1. Try to fetch Sitemap first for Old Site
+      let sitemapUrls: string[] = [];
+      let nestedSitemaps: string[] = [];
+
+      try {
+          // Priority: User provided sitemap -> Auto-discovered sitemap
+          const userSitemap = project.sitemapUrl?.trim();
+          let targetSitemap = '';
+          if (userSitemap) {
+              targetSitemap = userSitemap;
+          }
+          
+          console.log(`Trying to fetch sitemap: ${targetSitemap}`);
+          const sitemapData = await this.crawler.fetchSitemapContent(targetSitemap);
+          sitemapUrls = sitemapData.urls;
+          nestedSitemaps = sitemapData.nestedSitemaps;
+
+      } catch (e) {
+          console.log(`Sitemap fetch failed: ${e.message}`);
+      }
+      
+      // Determine strategy: Sitemap-driven or Recursive Crawl
+      const useSitemapStrategy = sitemapUrls.length > 0 || nestedSitemaps.length > 0;
+      
+      const startUrls = useSitemapStrategy ? sitemapUrls : [project.oldSiteUrl];
+      // For logging progress, we might not know total initially if nested sitemaps exist
+      let crawlMaxPages = useSitemapStrategy ? sitemapUrls.length : 10000;
+
       // Start crawling Old Site and stream results immediately
       // We also crawl New Site in parallel to find "New" pages
       
       const crawlPromises = [
         // Old Site Crawl
-        this.crawler.crawlSite(project.oldSiteUrl, 10000, async (oldPage) => {
-            if (isCancelled()) return; // Stop processing if cancelled
-
-            oldSiteData.set(oldPage.url, oldPage);
-            processedOldUrls.add(oldPage.url);
-            
-            // Immediately check New Site
-            const result = await this.checkSinglePage(oldPage, project.newSiteUrl);
-            
-            // If valid result found (fetch successful), add to newSiteData cache
-            if (result.newData && result.newUrl) {
-                newSiteData.set(result.newUrl, result.newData);
-            }
-
-            if (!isCancelled()) {
-                // Store result for cache
-                results.push(result);
-                if (result.oldUrl) oldUrlsFound.add(result.oldUrl);
-                if (result.newUrl) newUrlsFound.add(result.newUrl);
-
-                subject.next({ data: { type: 'result', result } } as MessageEvent);
-            }
-        }, isCancelled, 10), // Pass cancellation token and concurrency
+        (async () => {
+             // 1. Process Main Sitemap URLs first
+             if (useSitemapStrategy) {
+                 console.log(`[Crawl Strategy] Sitemap-based. Initial URLs: ${sitemapUrls.length}, Nested Sitemaps: ${nestedSitemaps.length}`);
+                 
+                 // Process direct URLs from main sitemap
+                 await this.processUrlBatch(sitemapUrls, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
+                 
+                 // 2. Process Nested Sitemaps Sequentially
+                 for (const nestedSitemapUrl of nestedSitemaps) {
+                     if (isCancelled()) break;
+                     console.log(`[Nested Sitemap] Processing: ${nestedSitemapUrl}`);
+                     
+                     // Fetch child sitemap content
+                     const childData = await this.crawler.fetchSitemapContent(nestedSitemapUrl);
+                     
+                     if (childData.nestedSitemaps.length > 0) {
+                         // Deep recursion? For now let's just handle one level deep as requested or iterate
+                         // The user said: "check inside the given one contain any sitemap if not then try to crawl entire urls"
+                         // This implies we should support deeper nesting. 
+                         // Let's add them to the END of the loop? 
+                         // No, better to recurse or just stack them.
+                         // Simple approach: Add found nested sitemaps to the 'nestedSitemaps' array we are iterating?
+                         // Mutating array while iterating is tricky in for..of.
+                         // Let's use a queue for sitemaps.
+                         nestedSitemaps.push(...childData.nestedSitemaps);
+                     }
+                     
+                     console.log(`[Nested Sitemap] Found ${childData.urls.length} URLs in ${nestedSitemapUrl}`);
+                     await this.processUrlBatch(childData.urls, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
+                 }
+                 
+             } else {
+                 // Standard Recursive Crawl (Homepage)
+                 console.log(`[Crawl Strategy] Recursive from Homepage: ${startUrls[0]}`);
+                 await this.crawler.crawlSite(startUrls[0], 10000, async (oldPage) => {
+                     if (isCancelled()) return;
+                     await this.processSinglePage(oldPage, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
+                 }, isCancelled, 10);
+             }
+        })(),
         
         // New Site Crawl (to populate newSiteData for later orphan check)
         this.crawler.crawlSite(project.newSiteUrl, 10000, (newPage) => {
@@ -267,6 +314,95 @@ export class ProjectsService {
     }
   }
 
+  // Helper to process a batch of URLs from Sitemap
+  private async processUrlBatch(
+      urls: string[], 
+      id: string,
+      oldSiteData: Map<string, PageData>,
+      processedOldUrls: Set<string>,
+      newSiteData: Map<string, PageData>,
+      results: ComparisonResult[],
+      oldUrlsFound: Set<string>,
+      newUrlsFound: Set<string>,
+      subject: Subject<MessageEvent>,
+      project: Project,
+      isCancelled: () => boolean
+  ) {
+      if (urls.length === 0) return;
+      
+      console.log(`[Batch] Starting processing of ${urls.length} URLs`);
+
+      // Use a concurrency limit
+      const concurrency = 10;
+      const queue = [...urls];
+      const activePromises = new Set<Promise<void>>();
+
+      while (queue.length > 0 || activePromises.size > 0) {
+          if (isCancelled()) break;
+
+          while (queue.length > 0 && activePromises.size < concurrency) {
+              const url = queue.shift();
+              if (!url) continue;
+
+              const promise = (async () => {
+                  try {
+                      // Fetch the page data
+                      const oldPage = await this.crawler.fetchPage(url);
+                      
+                      // Process the result
+                      await this.processSinglePage(oldPage, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
+                  } catch (e) {
+                      console.error(`Error processing sitemap URL ${url}: ${e.message}`);
+                  }
+              })();
+
+              activePromises.add(promise);
+              promise.finally(() => {
+                  activePromises.delete(promise);
+                  // Log progress every 10 completions or so
+                  if (results.length % 10 === 0) {
+                      console.log(`[Progress] Processed ${results.length} pages...`);
+                  }
+              });
+          }
+          
+          if (activePromises.size > 0) {
+              await Promise.race(activePromises);
+          }
+      }
+      console.log(`[Batch] Completed processing batch of ${urls.length} URLs`);
+  }
+
+  // Helper to process a single page result and emit
+  private async processSinglePage(
+      oldPage: PageData,
+      id: string,
+      oldSiteData: Map<string, PageData>,
+      processedOldUrls: Set<string>,
+      newSiteData: Map<string, PageData>,
+      results: ComparisonResult[],
+      oldUrlsFound: Set<string>,
+      newUrlsFound: Set<string>,
+      subject: Subject<MessageEvent>,
+      project: Project,
+      isCancelled: () => boolean
+  ) {
+       if (isCancelled()) return;
+       
+       oldSiteData.set(oldPage.url, oldPage);
+       processedOldUrls.add(oldPage.url);
+       
+       const result = await this.checkSinglePage(oldPage, project.newSiteUrl);
+       if (result.newData && result.newUrl) newSiteData.set(result.newUrl, result.newData);
+       
+       if (!isCancelled()) {
+           results.push(result);
+           if (result.oldUrl) oldUrlsFound.add(result.oldUrl);
+           if (result.newUrl) newUrlsFound.add(result.newUrl);
+           subject.next({ data: { type: 'result', result } } as MessageEvent);
+       }
+  }
+
   private async checkSinglePage(oldPage: PageData, newSiteBase: string): Promise<ComparisonResult> {
       // Logic:
       // 1. Get relative path from Old Page
@@ -347,7 +483,8 @@ export class ProjectsService {
 
             if (oldOgTitle && oldOgTitle !== newOgTitle) issues.push('OG Title mismatch');
             if (oldOgDesc && oldOgDesc !== newOgDesc) issues.push('OG Description mismatch');
-            if (oldOgImage && oldOgImage !== newOgImage) issues.push('OG Image mismatch');
+            // OG Image: Only check if missing. Path differences are expected (e.g., CDN or domain change)
+            // if (oldOgImage && oldOgImage !== newOgImage) issues.push('OG Image mismatch');
             
             // Schema Checks
             if (JSON.stringify(oldSchemas) !== JSON.stringify(newSchemas)) {

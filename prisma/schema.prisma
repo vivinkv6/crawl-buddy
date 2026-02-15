@@ -10,6 +10,7 @@ model Project {
   id         String   @id @default(uuid())
   oldSiteUrl String
   newSiteUrl String
+  sitemapUrl String? // Optional sitemap override
   createdAt  DateTime @default(now())
 
   @@map("projects")

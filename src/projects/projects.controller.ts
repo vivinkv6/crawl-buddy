@@ -13,6 +13,7 @@ export class ProjectsController {
   async create(@Body() body: CreateProjectDto, @Res() res: Response) {
     const oldUrl = body.oldSiteUrl;
     const newUrl = body.newSiteUrl;
+    const sitemapUrl = body.sitemapUrl;
 
     // Check if domains are same
     try {
@@ -34,7 +35,7 @@ export class ProjectsController {
         return res.status(HttpStatus.BAD_REQUEST).json({ message: `New Site URL is unreachable: ${newUrl}` });
     }
 
-    const project = await this.projectsService.createProject(oldUrl, newUrl);
+    const project = await this.projectsService.createProject(oldUrl, newUrl, sitemapUrl);
     // If request accepts JSON, return JSON instead of redirect
     if (res.req.headers['accept']?.includes('application/json')) {
         return res.json({ id: project.id });
