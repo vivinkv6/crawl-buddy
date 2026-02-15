@@ -631,22 +631,30 @@ export class ProjectsService {
       // Keywords
       'Old Keywords': r.oldData?.keywords || '-',
       'New Keywords': r.newData?.keywords || '-',
+      'Keywords Match': r.oldData?.keywords === r.newData?.keywords ? '✅' : '❌',
 
       // Canonical
       'Old Canonical': r.oldData?.canonical || '-',
       'New Canonical': r.newData?.canonical || '-',
+      'Canonical Match': r.oldData?.canonical === r.newData?.canonical ? '✅' : '❌',
 
       // Open Graph
       'Old OG Title': r.oldData?.ogTitle || '-',
       'New OG Title': r.newData?.ogTitle || '-',
+      'OG Title Match': r.oldData?.ogTitle === r.newData?.ogTitle ? '✅' : '❌',
+
       'Old OG Desc': r.oldData?.ogDescription || '-',
       'New OG Desc': r.newData?.ogDescription || '-',
+      'OG Desc Match': r.oldData?.ogDescription === r.newData?.ogDescription ? '✅' : '❌',
+
       'Old OG Image': r.oldData?.ogImage || '-',
       'New OG Image': r.newData?.ogImage || '-',
+      'OG Image Match': !r.oldData?.ogImage || r.newData?.ogImage ? '✅' : '❌', // Only fail if old has image but new doesn't
 
       // Schemas
       'Old Schemas': r.oldData?.schemas?.join(', ') || '-',
       'New Schemas': r.newData?.schemas?.join(', ') || '-',
+      'Schemas Match': JSON.stringify((r.oldData?.schemas || []).sort()) === JSON.stringify((r.newData?.schemas || []).sort()) ? '✅' : '❌',
     }));
 
     const ws = XLSX.utils.json_to_sheet(reportData);
