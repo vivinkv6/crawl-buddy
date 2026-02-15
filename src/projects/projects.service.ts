@@ -314,11 +314,14 @@ export class ProjectsService {
             const newTitle = clean(newPage.title);
             const oldDesc = clean(oldPage.description);
             const newDesc = clean(newPage.description);
+            const oldKeywords = clean(oldPage.keywords);
+            const newKeywords = clean(newPage.keywords);
             const oldH1 = clean(oldPage.h1);
             const newH1 = clean(newPage.h1);
 
             if (oldTitle && oldTitle !== newTitle) issues.push('Title mismatch');
             if (oldDesc && oldDesc !== newDesc) issues.push('Description mismatch');
+            if (oldKeywords && oldKeywords !== newKeywords) issues.push('Keywords mismatch');
             if (oldH1 && oldH1 !== newH1) issues.push('H1 mismatch');
             
             if (oldPage.canonical && oldPage.canonical !== newPage.canonical) {
@@ -338,6 +341,7 @@ export class ProjectsService {
             
             if (oldTitle && !newTitle) issues.push('Missing Title on New');
             if (oldDesc && !newDesc) issues.push('Missing Description on New');
+            if (oldKeywords && !newKeywords) issues.push('Missing Keywords on New');
             if (oldH1 && !newH1) issues.push('Missing H1 on New');
         }
       }

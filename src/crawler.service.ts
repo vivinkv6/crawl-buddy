@@ -9,6 +9,7 @@ export interface PageData {
   title: string;
   description: string;
   h1: string;
+  keywords: string;
   canonical: string;
   robots: string;
   links: string[]; // Outgoing links
@@ -122,6 +123,7 @@ export class CrawlerService {
         let title = '';
         let description = '';
         let h1 = '';
+        let keywords = '';
         let canonical = '';
         let robots = '';
         const links: string[] = [];
@@ -131,6 +133,7 @@ export class CrawlerService {
           title = $('title').text().trim();
           description = $('meta[name="description"]').attr('content')?.trim() || '';
           h1 = $('h1').first().text().trim();
+          keywords = $('meta[name="keywords"]').attr('content')?.trim() || '';
           canonical = $('link[rel="canonical"]').attr('href')?.trim() || '';
           robots = $('meta[name="robots"]').attr('content')?.trim() || '';
           
@@ -163,6 +166,7 @@ export class CrawlerService {
           title,
           description,
           h1,
+          keywords,
           canonical,
           robots,
           links
@@ -177,6 +181,7 @@ export class CrawlerService {
           title: '',
           description: '',
           h1: '',
+          keywords: '',
           canonical: '',
           robots: '',
           links: []
