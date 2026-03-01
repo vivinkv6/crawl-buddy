@@ -3,6 +3,7 @@ import { ScraperService } from './scraper.service';
 import { DownloadService } from './download.service';
 import type { Response } from 'express';
 import * as XLSX from 'xlsx';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('scraper')
 export class ScraperController {
@@ -12,18 +13,21 @@ export class ScraperController {
   ) {}
 
   @Get()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Render('scraper')
   scraperPage() {
     return {};
   }
 
   @Get('url-extractor')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Render('url-extractor')
   urlExtractorPage() {
     return {};
   }
 
   @Get('extract-urls')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async extractUrls(@Query('sitemapUrl') sitemapUrl: string, @Res() res: Response) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -43,30 +47,33 @@ export class ScraperController {
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     try {
-      // First, fetch all URLs to get total count
-      const urls = await this.scraperService.parseSitemap(sitemapUrl);
-      const uniqueUrls = [...new Set(urls)];
-      const totalUrls = uniqueUrls.length;
+      // First, get total count efficiently
+      const totalCount = await this.scraperService.getSitemapUrlCount(sitemapUrl);
 
-      if (totalUrls === 0) {
+      if (totalCount === 0) {
         sendEvent({ type: 'error', message: 'No URLs found in sitemap' });
         res.end();
         return;
       }
 
       // Send start event with total count
-      sendEvent({ type: 'start', total: totalUrls });
+      sendEvent({ type: 'start', total: totalCount });
 
-      // Then stream each URL with a small delay
-      for (let i = 0; i < uniqueUrls.length; i++) {
-        sendEvent({ 
-          type: 'result', 
-          url: uniqueUrls[i],
-          index: i + 1,
-          total: totalUrls
-        });
-        await delay(5);
-      }
+      // Stream URLs as they're found (memory efficient)
+      const totalUrls = await this.scraperService.streamSitemapUrls(
+        sitemapUrl,
+        (url, index) => {
+          sendEvent({ 
+            type: 'result', 
+            url: url,
+            index: index,
+            total: totalCount
+          });
+        },
+        3,
+        0,
+        10000 // Max 10000 pages
+      );
 
       sendEvent({ type: 'complete', total: totalUrls });
       res.end();
@@ -77,6 +84,7 @@ export class ScraperController {
   }
 
   @Post('extract-urls/export')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async exportUrls(@Body() body: any, @Res() res: Response) {
     try {
       const { urls } = body;
@@ -105,6 +113,7 @@ export class ScraperController {
   }
 
   @Post('scrape')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async scrape(@Body() body: any, @Res() res: Response) {
     try {
       const { url, contentType = 'all', scrapeScope = 'entire' } = body;
@@ -146,6 +155,7 @@ export class ScraperController {
   }
 
   @Post('download')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async download(@Body() body: any, @Res() res: Response) {
     try {
       const { data, contentType, scrapeScope, format = ['json', 'xlsx'] } = body;
@@ -167,6 +177,7 @@ export class ScraperController {
   }
 
   @Post('download-media')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async downloadMedia(@Body() body: any, @Res() res: Response) {
     try {
       const { mediaFiles } = body;
@@ -191,6 +202,7 @@ export class ScraperController {
   }
 
   @Post('download-media/stream')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async downloadMediaStream(@Body() body: any, @Res() res: Response) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -226,6 +238,7 @@ export class ScraperController {
   }
 
   @Post('scrape/stream')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async streamScrape(@Body() body: any, @Res() res: Response) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -318,6 +331,7 @@ export class ScraperController {
   }
 
   @Get('scrape/stream')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async streamScrapeGet(
     @Query('url') url: string,
     @Query('contentType') contentType: string = 'all',

@@ -12,19 +12,18 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
     ProjectsModule,
     ScraperModule,
-    // Rate Limiting: 10 requests per 60 seconds
     ThrottlerModule.forRoot([{
-        ttl: 60000,
-        limit: 10,
+      ttl: 60000,
+      limit: 30,
     }]),
   ],
   controllers: [AppController],
   providers: [
-      AppService,
-      {
-          provide: APP_GUARD,
-          useClass: ThrottlerGuard,
-      }
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    }
   ],
 })
 export class AppModule {}

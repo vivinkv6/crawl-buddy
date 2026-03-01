@@ -5,6 +5,7 @@ import { join } from 'path';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
+import { ThrottlerExceptionFilter } from './filters/throttler-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(
@@ -30,6 +31,9 @@ async function bootstrap() {
       forbidNonWhitelisted: true, // Throw error if extra properties present
       transform: true, // Auto transform payloads to DTO instances
   }));
+
+  // Apply throttler exception filter globally
+  app.useGlobalFilters(new ThrottlerExceptionFilter());
 
   // Increase body-parser limits for large download payloads
   app.useBodyParser('json', { limit: '500mb' });

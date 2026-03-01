@@ -1,50 +1,101 @@
 # Crawl Buddy
 
-## Your Safety Net for Website Migrations
+## Your All-in-One SEO & Web Scraping Toolkit
 
-Moving to a new website shouldn't mean losing your hard-earned search rankings. Crawl Buddy acts as your personal migration assistant, automatically checking every page on your old site against your new one. It spots missing pages, broken links, and hidden errors instantly so you can fix them before your customers—or Google—ever notice.
+Crawl Buddy is a comprehensive SEO tool that helps you with website migrations, content scraping, and URL extraction. It provides real-time streaming results and easy export options.
 
-### Key Features
+---
 
-*   **Smart Comparison**: Instantly compares your old and new sites side-by-side.
-*   **Sitemap Integration**: Supports crawling via **Sitemap XML** (including nested sitemaps) for 100% page coverage.
-*   **Deep SEO Analysis**: Checks **Keywords**, **Schema Markup**, **H1 Tags**, **Titles**, and **Descriptions**.
-*   **Redirect Intelligence**: Verifies if old links correctly redirect to the new site (301s).
-*   **Error Spotting**: Finds broken links (404s) and missing pages automatically.
-*   **Simple Reports**: Gives you clear, actionable lists of what needs fixing.
+## Tools Overview
 
-### Technical Overview
+### 1. Migration Checker
+**Your Safety Net for Website Migrations**
 
-*   **Real-Time Comparison**: Streams crawl results instantly using Server-Sent Events (SSE), providing immediate feedback without waiting for the entire crawl to finish.
-*   **Comprehensive SEO Checks**:
-    *   **Status Codes**: Identifies 404 errors, 500 server errors, and verifies 301 redirects.
-    *   **Meta Tag Validation**: Compares Title tags, Meta Descriptions, Keywords, and H1 headers.
-    *   **Social Media Validation**: Checks Open Graph (OG) Title, Description, and Image tags for social sharing.
-    *   **Schema Markup**: Detects and compares structured data (JSON-LD) types (e.g., FAQ, Organization).
-    *   **Canonical Analysis**: Detects mismatches in canonical tags.
-    *   **Orphan Page Detection**: Finds new pages on the destination site that don't exist on the source site.
-*   **Interactive Dashboard**:
-    *   Visual summary cards for quick insights (Total Scanned, Missing, New, Meta Issues).
-    *   Filterable results table for focused analysis.
-*   **Instant Reporting**:
-    *   **In-Memory Caching**: Stores crawl results temporarily for instant report generation.
-    *   **Excel Export**: Download detailed audit reports in `.xlsx` format with support for filtered views (e.g., download only "Missing" pages).
+Moving to a new website shouldn't mean losing your hard-earned search rankings. Crawl Buddy acts as your personal migration assistant, automatically checking every page on your old site against your new one.
 
-### Technologies Used
+**Features:**
+- **Smart Comparison**: Instantly compares your old and new sites side-by-side
+- **Sitemap Integration**: Supports crawling via Sitemap XML (including nested sitemaps)
+- **Deep SEO Analysis**: Checks Keywords, Schema Markup, H1 Tags, Titles, and Descriptions
+- **Redirect Intelligence**: Verifies if old links correctly redirect to the new site (301s)
+- **Error Spotting**: Finds broken links (404s) and missing pages automatically
+- **Detailed Reports**: Download audit reports in Excel format with filtered views
 
-This project is built with a modern, robust technology stack:
+---
 
-#### Backend
-*   **[NestJS](https://nestjs.com/)**: A progressive Node.js framework for building efficient, reliable, and scalable server-side applications.
-*   **[TypeScript](https://www.typescriptlang.org/)**: Typed superset of JavaScript for safer and more maintainable code.
-*   **[Prisma](https://www.prisma.io/)**: Next-generation ORM for Node.js and TypeScript, used for interacting with the PostgreSQL database.
-*   **[PostgreSQL](https://www.postgresql.org/)**: Powerful, open-source object-relational database system.
-*   **[RxJS](https://rxjs.dev/)**: Library for reactive programming using Observables, powering the real-time streaming functionality.
-*   **[Cheerio](https://cheerio.js.org/)**: Fast, flexible, and lean implementation of core jQuery designed specifically for the server to parse HTML.
-*   **[Axios](https://axios-http.com/)**: Promise-based HTTP client for making requests to external sites.
-*   **[SheetJS (xlsx)](https://sheetjs.com/)**: Library for parsing and generating Excel spreadsheets.
+### 2. Website Scraper
+**Extract Content from Any Website**
 
-#### Frontend
-*   **[EJS (Embedded JavaScript)](https://ejs.co/)**: Simple templating language that lets you generate HTML markup with plain JavaScript.
-*   **[Bootstrap 5](https://getbootstrap.com/)**: Powerful, extensible, and feature-packed frontend toolkit for responsive design.
-*   **Server-Sent Events (SSE)**: Standard web technology for streaming updates from server to client.
+A powerful web scraping tool that lets you extract various types of content from websites in real-time.
+
+**Features:**
+- **Flexible Scraping**: Scrape single pages or entire websites via sitemap
+- **Content Types**: Extract Meta Tags, Images, Videos, Links, Documents, Social Media, and Contact Info
+- **Real-Time Streaming**: See results as they're scraped, with progress updates
+- **Server-Sent Events**: Live streaming of scraped data for immediate feedback
+- **Export Options**: Download scraped data in JSON or Excel format
+
+**Use Cases:**
+- Competitor research
+- Content aggregation
+- Price monitoring
+- Data collection for analysis
+
+---
+
+### 3. Website URL Extractor
+**Extract All Indexed URLs from Any Sitemap**
+
+Quickly extract all URLs from a website's sitemap for analysis or export.
+
+**Features:**
+- **Sitemap Parsing**: Fetches and parses XML sitemaps automatically
+- **Nested Sitemap Support**: Handles sitemap indexes with multiple nested sitemaps
+- **Real-Time Extraction**: URLs appear as they're discovered
+- **Progress Tracking**: See extraction progress with count display
+- **Excel Export**: Export all URLs to a spreadsheet for further analysis
+
+**Use Cases:**
+- SEO audits
+- URL inventory
+- Sitemap validation
+- Link analysis
+
+---
+
+## Technical Overview
+
+### Real-Time Streaming
+All tools use Server-Sent Events (SSE) to stream results instantly, providing immediate feedback without waiting for operations to complete.
+
+### SEO Analysis (Migration Checker)
+- **Status Codes**: Identifies 404 errors, 500 server errors, and verifies 301 redirects
+- **Meta Tag Validation**: Compares Title tags, Meta Descriptions, Keywords, and H1 headers
+- **Social Media Validation**: Checks Open Graph (OG) Title, Description, and Image tags
+- **Schema Markup**: Detects and compares structured data (JSON-LD) types
+- **Canonical Analysis**: Detects mismatches in canonical tags
+- **Orphan Page Detection**: Finds new pages on the destination site
+
+### Interactive Dashboard
+- Visual summary cards for quick insights
+- Filterable results tables
+- Dark/Light mode support
+
+---
+
+## Technologies Used
+
+### Backend
+- **NestJS**: Progressive Node.js framework for building efficient server-side applications
+- **TypeScript**: Typed superset of JavaScript for safer code
+- **Prisma**: ORM for interacting with PostgreSQL database
+- **PostgreSQL**: Open-source relational database
+- **RxJS**: Reactive programming with Observables for streaming
+- **Cheerio**: Server-side HTML parsing
+- **Axios**: HTTP client for external requests
+- **SheetJS (xlsx)**: Excel file generation
+
+### Frontend
+- **EJS**: JavaScript templating for HTML generation
+- **Bootstrap 5**: Responsive frontend framework
+- **Server-Sent Events (SSE)**: Real-time updates from server to client

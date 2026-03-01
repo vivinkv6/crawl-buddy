@@ -352,6 +352,7 @@ const page = 'migration';
   const page = 'migration';
   let projectId = null;
   let eventSource = null;
+  let isAnalysisComplete = false;
   const rowDataStore = new Map();
   
   const setupCard = document.getElementById('setupCard');
@@ -433,6 +434,7 @@ const page = 'migration';
     setStatus('active', 'Analyzing...', 'Comparing pages');
     progressBar.style.width = '0%';
     progressContainer.classList.remove('d-none');
+    isAnalysisComplete = false;
 
     eventSource = new EventSource(`/projects/${id}/stream`);
     
@@ -442,6 +444,7 @@ const page = 'migration';
       if (msg.type === 'result') {
         addResultRow(msg.result);
       } else if (msg.type === 'complete') {
+        isAnalysisComplete = true;
         finishAnalysis();
       } else if (msg.type === 'error') {
         eventSource.close();
@@ -451,6 +454,12 @@ const page = 'migration';
     
     eventSource.onerror = () => {
       eventSource.close();
+      if (!isAnalysisComplete) {
+        setStatus('error', 'Analysis Stopped', `Stopped at ${countTotal} pages`);
+        if (typeof notificationSystem !== 'undefined') {
+          notificationSystem.warning(`Analysis stopped. ${countTotal} pages were analyzed before stopping.`);
+        }
+      }
     };
   }
 
@@ -641,6 +650,11 @@ const page = 'migration';
     startBtn.querySelector('.spinner').classList.add('d-none');
     startBtn.querySelector('.play-icon').classList.remove('d-none');
     createProjectForm.reset();
+  });
+
+  // Handle page unload (refresh/navigate away)
+  window.addEventListener('beforeunload', () => {
+    if (eventSource) eventSource.close();
   });
 </script>
 

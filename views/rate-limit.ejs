@@ -1,0 +1,186 @@
+<%
+const page = 'rate-limit';
+%>
+<%- include('partials/header') %>
+
+<style>
+.rate-limit-container {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.rate-limit-card {
+  background: var(--cb-bg);
+  border-radius: var(--cb-radius-xl);
+  padding: 3rem;
+  text-align: center;
+  max-width: 500px;
+  box-shadow: var(--cb-shadow-xl);
+  border: 1px solid var(--cb-border);
+}
+
+.rate-limit-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--cb-warning) 0%, var(--cb-warning-dark) 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+}
+
+.rate-limit-icon svg {
+  width: 40px;
+  height: 40px;
+  color: white;
+}
+
+.rate-limit-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--cb-text);
+  margin-bottom: 1rem;
+}
+
+.rate-limit-message {
+  color: var(--cb-text-secondary);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.rate-limit-timer {
+  background: var(--cb-bg-secondary);
+  padding: 1rem 2rem;
+  border-radius: var(--cb-radius-lg);
+  display: inline-block;
+  margin-bottom: 1.5rem;
+}
+
+.rate-limit-timer span {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cb-primary);
+}
+
+.rate-limit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, var(--cb-primary) 0%, var(--cb-primary-dark) 100%);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--cb-radius);
+  text-decoration: none;
+  font-weight: 500;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.rate-limit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cb-shadow-lg);
+  color: white;
+}
+</style>
+
+<div class="rate-limit-container">
+  <div class="rate-limit-card">
+    <div class="rate-limit-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+    </div>
+    <h1 class="rate-limit-title">Server is Busy</h1>
+    <p class="rate-limit-message">
+      We're experiencing high traffic right now. To ensure smooth performance for all users, we've temporarily limited the number of requests.
+    </p>
+    <div class="rate-limit-timer">
+      Please try again in <span id="countdown">--</span> seconds
+    </div>
+    <br>
+    <a href="javascript:void(0)" class="rate-limit-btn" id="retryBtn" style="display: none;" data-referrer="<%= refererUrl || '/' %>">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+        <path d="M3 3v5h5"></path>
+      </svg>
+      Try Again
+    </a>
+    <a href="/" class="rate-limit-btn" id="homeBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+      Go to Home
+    </a>
+  </div>
+</div>
+
+<script>
+(function() {
+  const COUNTDOWN_KEY = 'rateLimitCountdown';
+  const REFERER_KEY = 'rateLimitReferer';
+  const countdownEl = document.getElementById('countdown');
+  const retryBtn = document.getElementById('retryBtn');
+  const homeBtn = document.getElementById('homeBtn');
+  
+  // Store referer if not already stored
+  let storedReferer = localStorage.getItem(REFERER_KEY);
+  if (!storedReferer && '<%= refererUrl || "/" %>') {
+    localStorage.setItem(REFERER_KEY, '<%= refererUrl || "/" %>');
+    storedReferer = '<%= refererUrl || "/" %>';
+  }
+  
+  let storedTime = localStorage.getItem(COUNTDOWN_KEY);
+  
+  if (!storedTime) {
+    storedTime = Date.now() + (60 * 1000);
+    localStorage.setItem(COUNTDOWN_KEY, storedTime);
+  }
+  
+  let remainingSeconds = Math.max(0, Math.ceil((parseInt(storedTime) - Date.now()) / 1000));
+  
+  if (remainingSeconds <= 0) {
+    localStorage.removeItem(COUNTDOWN_KEY);
+    countdownEl.textContent = '0';
+    retryBtn.style.display = 'inline-flex';
+    homeBtn.style.display = 'none';
+    
+    // Set click handler for retry button
+    retryBtn.addEventListener('click', function() {
+      const referer = localStorage.getItem(REFERER_KEY) || '/';
+      localStorage.removeItem(REFERER_KEY);
+      localStorage.removeItem(COUNTDOWN_KEY);
+      window.location.href = referer;
+    });
+    return;
+  }
+  
+  countdownEl.textContent = remainingSeconds;
+  
+  const timer = setInterval(function() {
+    remainingSeconds--;
+    countdownEl.textContent = remainingSeconds;
+    
+    if (remainingSeconds <= 0) {
+      clearInterval(timer);
+      localStorage.removeItem(COUNTDOWN_KEY);
+      retryBtn.style.display = 'inline-flex';
+      homeBtn.style.display = 'none';
+      
+      // Set click handler for retry button
+      retryBtn.addEventListener('click', function() {
+        const referer = localStorage.getItem(REFERER_KEY) || '/';
+        localStorage.removeItem(REFERER_KEY);
+        localStorage.removeItem(COUNTDOWN_KEY);
+        window.location.href = referer;
+      });
+    }
+  }, 1000);
+})();
+</script>
+
+<%- include('partials/footer') %>

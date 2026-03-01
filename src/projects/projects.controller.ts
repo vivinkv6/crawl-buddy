@@ -4,12 +4,14 @@ import type { Response } from 'express';
 import { Observable } from 'rxjs';
 import axios from 'axios';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async create(@Body() body: CreateProjectDto, @Res() res: Response) {
     const oldUrl = body.oldSiteUrl;
     const newUrl = body.newSiteUrl;
@@ -59,6 +61,7 @@ export class ProjectsController {
   }
 
   @Get(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Render('project')
   async findOne(@Param('id') id: string) {
     const project = await this.projectsService.getProject(id);
@@ -66,6 +69,7 @@ export class ProjectsController {
   }
 
   @Post(':id/analyze')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async analyze(@Param('id') id: string, @Res() res: Response) {
       try {
         const report = await this.projectsService.runComparison(id);
@@ -76,11 +80,13 @@ export class ProjectsController {
   }
 
   @Sse(':id/stream')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   stream(@Param('id') id: string): Observable<MessageEvent> {
     return this.projectsService.streamComparison(id);
   }
 
   @Get(':id/export')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async export(@Param('id') id: string, @Query('filter') filter: string, @Res() res: Response) {
     const report = await this.projectsService.runComparison(id);
     const buffer = this.projectsService.exportToExcel(report, filter);

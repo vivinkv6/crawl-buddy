@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let extractedUrls = [];
   let isExtracting = false;
+  let isExtractionComplete = false;
   let sseSource = null;
   let totalUrls = 0;
 
@@ -74,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     isExtracting = true;
+    isExtractionComplete = false;
     extractedUrls = [];
     totalUrls = 0;
     urlsTableBody.innerHTML = '';
@@ -110,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
           case 'complete':
             totalUrls = data.total;
+            isExtractionComplete = true;
             updateProgressText(data.total, data.total);
             setStatus('idle', 'Completed', `Successfully extracted ${data.total} URLs`);
             window.notificationSystem.success(`Extraction complete: ${data.total} URLs found.`);
@@ -128,7 +131,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     sseSource.onerror = () => {
-      handleError(new Error('Connection to the server was lost. Please try again.'));
+      sseSource.close();
+      if (!isExtractionComplete && isExtracting) {
+        setStatus('error', 'Extraction Stopped', `Stopped at ${extractedUrls.length} URLs`);
+        window.notificationSystem.warning(`Extraction stopped. ${extractedUrls.length} URLs were extracted before stopping.`);
+      } else {
+        handleError(new Error('Connection to the server was lost. Please try again.'));
+      }
+      isExtracting = false;
+      extractBtn.disabled = false;
+      extractBtn.querySelector('.spinner').classList.add('d-none');
+      extractBtn.querySelector('.play-icon').classList.remove('d-none');
     };
   };
   
@@ -205,8 +218,22 @@ document.addEventListener('DOMContentLoaded', () => {
           const icon = copyBtn.querySelector('i');
           icon.className = 'bi bi-check2';
           setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
-        });
-      }
     });
+  }
+
+  // Handle page unload (refresh/navigate away)
+  window.addEventListener('beforeunload', () => {
+    if (isExtracting && !isExtractionComplete) {
+      if (sseSource) sseSource.close();
+    }
+  });
+
+  // Handle visibility change (tab switch/minimize)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && isExtracting && !isExtractionComplete) {
+      // User switched tabs - keep running but track as potentially abandoned
+    }
+  });
+});
   }
 });

@@ -336,6 +336,101 @@ export class ScraperService {
     return results;
   }
 
+  async getSitemapUrlCount(sitemapUrl: string, maxDepth = 3, currentDepth = 0): Promise<number> {
+    if (currentDepth >= maxDepth) return 0;
+    
+    try {
+      const response = await axios.get(sitemapUrl, {
+        timeout: 30000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CrawlBuddy/1.0)' },
+      });
+
+      const $ = cheerio.load(response.data, { xmlMode: true });
+      
+      if ($('sitemapindex').length > 0) {
+        let count = 0;
+        const nested: string[] = [];
+        $('sitemap loc').each((_, el) => {
+          const u = $(el).text().trim();
+          if (u) nested.push(u);
+        });
+        for (const n of nested) {
+          count += await this.getSitemapUrlCount(n, maxDepth, currentDepth + 1);
+        }
+        return count;
+      } else if ($('urlset').length > 0) {
+        return $('url loc').length;
+      }
+    } catch (error) {
+      this.logger.error(`Failed to count sitemap ${sitemapUrl}: ${error.message}`);
+    }
+    return 0;
+  }
+
+  async streamSitemapUrls(
+    sitemapUrl: string,
+    onUrlFound: (url: string, index: number) => void,
+    maxDepth = 3,
+    currentDepth = 0,
+    maxPages = 10000
+  ): Promise<number> {
+    const seenUrls = new Set<string>();
+    let urlIndex = 0;
+
+    const processUrl = (url: string): boolean => {
+      if (!url || seenUrls.has(url) || urlIndex >= maxPages) return false;
+      seenUrls.add(url);
+      urlIndex++;
+      onUrlFound(url, urlIndex);
+      return true;
+    };
+
+    const parseRecursive = async (url: string, depth: number): Promise<void> => {
+      if (depth >= maxDepth || urlIndex >= maxPages) return;
+      
+      try {
+        const response = await axios.get(url, {
+          timeout: 30000,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CrawlBuddy/1.0)' },
+        });
+
+        const $ = cheerio.load(response.data, { xmlMode: true });
+        
+        if ($('sitemapindex').length > 0) {
+          const nested: string[] = [];
+          $('sitemap loc').each((_, el) => {
+            const u = $(el).text().trim();
+            if (u) nested.push(u);
+          });
+          for (const n of nested) {
+            if (urlIndex >= maxPages) break;
+            await parseRecursive(n, depth + 1);
+          }
+        } else if ($('urlset').length > 0) {
+          $('url loc').each((_, el) => {
+            if (urlIndex >= maxPages) return;
+            const u = $(el).text().trim();
+            processUrl(u);
+          });
+        } else {
+          const text = $('body').text();
+          const matches = text.match(/https?:\/\/[^\s<>"{}|\\^`\[\]]+/g);
+          if (matches) {
+            for (const m of matches) {
+              if (urlIndex >= maxPages) break;
+              if (m.startsWith('http')) processUrl(m);
+            }
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Failed to parse sitemap ${url}: ${error.message}`);
+      }
+    };
+
+    await parseRecursive(sitemapUrl, currentDepth);
+    return urlIndex;
+  }
+
   async parseSitemap(sitemapUrl: string, maxDepth = 3, currentDepth = 0): Promise<string[]> {
     const urls: string[] = [];
     

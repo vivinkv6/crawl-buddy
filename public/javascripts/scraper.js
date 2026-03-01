@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let scrapedPages = [];
   let eventSource = null;
   let isScraping = false;
+  let isScrapeComplete = false;
   let leaveCallback = null;
 
   const scrapeForm = document.getElementById('scrapeForm');
@@ -1163,6 +1164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     isScraping = true;
+    isScrapeComplete = false;
     eventSource = new EventSource(`/scraper/scrape/stream?${params}`);
 
     eventSource.onmessage = (event) => {
@@ -1191,6 +1193,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (msg.type === 'complete') {
         eventSource.close();
         isScraping = false;
+        isScrapeComplete = true;
         hideLoading();
         setStatus('idle', 'Completed', `Scraped ${msg.totalPages} pages${msg.failed ? `, ${msg.failed} failed` : ''}`);
         progressContainer.classList.add('d-none');
@@ -1216,9 +1219,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     eventSource.onerror = () => {
       eventSource.close();
+      if (!isScrapeComplete && isScraping) {
+        setStatus('error', 'Scraping Stopped', `Stopped at ${scrapedPages.length} pages`);
+        notificationSystem.warning(`Scraping stopped. ${scrapedPages.length} pages were scraped before stopping.`);
+      } else {
+        setStatus('error', 'Error', 'Connection lost');
+      }
       isScraping = false;
       hideLoading();
-      setStatus('error', 'Error', 'Connection lost');
     };
+  });
+
+  // Handle page unload (refresh/navigate away)
+  window.addEventListener('beforeunload', () => {
+    if (isScraping && !isScrapeComplete) {
+      if (eventSource) eventSource.close();
+    }
   });
 });
