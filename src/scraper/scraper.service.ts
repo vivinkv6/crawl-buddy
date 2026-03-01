@@ -336,67 +336,6 @@ export class ScraperService {
     return results;
   }
 
-  async parseSitemapWithCallback(
-    sitemapUrl: string, 
-    onUrlFound: (url: string, index: number) => void,
-    maxDepth = 3, 
-    currentDepth = 0
-  ): Promise<number> {
-    const seenUrls = new Set<string>();
-    let urlIndex = 0;
-    
-    const processUrl = (url: string) => {
-      if (!seenUrls.has(url)) {
-        seenUrls.add(url);
-        urlIndex++;
-        onUrlFound(url, urlIndex);
-      }
-    };
-
-    const parseRecursive = async (url: string, depth: number): Promise<void> => {
-      if (depth >= maxDepth) return;
-      
-      try {
-        const response = await axios.get(url, {
-          timeout: 30000,
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CrawlWise/1.0)' },
-        });
-
-        const $ = cheerio.load(response.data, { xmlMode: true });
-        const sitemapIndex = $('sitemapindex').length > 0;
-        const urlset = $('urlset').length > 0;
-
-        if (sitemapIndex) {
-          const nestedSitemaps: string[] = [];
-          $('sitemap loc').each((_, element) => {
-            const subSitemapUrl = $(element).text().trim();
-            if (subSitemapUrl) nestedSitemaps.push(subSitemapUrl);
-          });
-
-          for (const nestedSitemap of nestedSitemaps) {
-            await parseRecursive(nestedSitemap, depth + 1);
-          }
-        } else if (urlset) {
-          $('url loc').each((_, element) => {
-            const pageUrl = $(element).text().trim();
-            if (pageUrl) processUrl(pageUrl);
-          });
-        } else {
-          const textContent = $('body').text();
-          const urlMatches = textContent.match(/https?:\/\/[^\s<>"{}|\\^`\[\]]+/g);
-          if (urlMatches) {
-            urlMatches.filter(url => url.startsWith('http')).forEach(processUrl);
-          }
-        }
-      } catch (error) {
-        this.logger.error(`Failed to parse sitemap ${url}: ${error.message}`);
-      }
-    };
-
-    await parseRecursive(sitemapUrl, currentDepth);
-    return urlIndex;
-  }
-
   async parseSitemap(sitemapUrl: string, maxDepth = 3, currentDepth = 0): Promise<string[]> {
     const urls: string[] = [];
     
