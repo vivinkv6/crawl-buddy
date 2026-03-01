@@ -235,47 +235,6 @@ export class ProjectsService {
           return;
       }
 
-      // After both crawls finish, check for "New" pages (Orphans)
-      // Any URL in newSiteData that was NOT processed via oldSite mapping
-      
-      const matchedNewUrls = new Set<string>();
-      for (const oldUrl of processedOldUrls) {
-           const oldUrlObj = new URL(oldUrl);
-           const relativePath = oldUrl.replace(oldUrlObj.origin, '');
-           const expectedNewUrl = new URL(relativePath, project.newSiteUrl).href;
-           matchedNewUrls.add(expectedNewUrl);
-      }
-
-      for (const [newUrl, newPage] of newSiteData.entries()) {
-          if (isCancelled()) break;
-
-          if (!matchedNewUrls.has(newUrl)) {
-              // Double check reverse mapping
-              const newUrlObj = new URL(newUrl);
-              const relativePath = newUrl.replace(newUrlObj.origin, '');
-              const expectedOldUrl = new URL(relativePath, project.oldSiteUrl).href;
-              
-              if (!oldSiteData.has(expectedOldUrl)) {
-                   // It is indeed new
-                   const result: ComparisonResult = {
-                        oldUrl: expectedOldUrl, // Hypothetical
-                        newUrl,
-                        status: 'New',
-                        oldData: null,
-                        newData: newPage,
-                        issues: ['Page found on new site but not on old site'],
-                   };
-                   
-                   // Store result for cache
-                   results.push(result);
-                   if (result.oldUrl) oldUrlsFound.add(result.oldUrl);
-                   if (result.newUrl) newUrlsFound.add(result.newUrl);
-
-                   subject.next({ data: { type: 'result', result } } as MessageEvent);
-              }
-          }
-      }
-
       // Build Report and Cache
       const metaIssuesCount = results.filter(r => r.status === 'Matched' && r.issues.length > 0).length;
       const report: ProjectReport = {
@@ -284,7 +243,7 @@ export class ProjectsService {
               totalOld: oldUrlsFound.size,
               totalNew: newUrlsFound.size,
               missing: results.filter(r => r.status === 'Missing').length,
-              newPages: results.filter(r => r.status === 'New').length,
+              newPages: 0,
               metaIssues: metaIssuesCount
           },
           results
@@ -579,7 +538,7 @@ export class ProjectsService {
                             totalOld: oldUrls.size,
                             totalNew: newUrls.size,
                             missing: results.filter(r => r.status === 'Missing').length,
-                            newPages: results.filter(r => r.status === 'New').length,
+                            newPages: 0,
                             metaIssues: metaIssuesCount
                         },
                         results
@@ -599,7 +558,6 @@ export class ProjectsService {
     if (filter && filter !== 'all') {
         filteredResults = report.results.filter(r => {
             if (filter === 'Missing') return r.status === 'Missing' || r.status === 'Error';
-            if (filter === 'New') return r.status === 'New';
             if (filter === 'Meta') return r.status === 'Matched' && r.issues.length > 0;
             return true;
         });

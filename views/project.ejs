@@ -3,7 +3,7 @@
 <div class="container mt-5 mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2><span class="badge bg-primary me-2">Project</span> Dashboard</h2>
+            <h2>Migration Analysis</h2>
             <p class="text-muted mb-0">ID: <%= project.id %></p>
         </div>
         <div>
@@ -15,13 +15,13 @@
 
     <div class="row mb-4">
         <div class="col-md-6">
-            <div class="card p-4 h-100 shadow-sm border-0 bg-light">
+            <div class="cb-card-static p-4 h-100 border-0" style="background: var(--cb-bg-secondary);">
                 <h6 class="text-uppercase text-muted fw-bold mb-2">Old Site (Source)</h6>
                 <code class="fs-5 text-primary text-break"><%= project.oldSiteUrl %></code>
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card p-4 h-100 shadow-sm border-0 bg-light">
+            <div class="cb-card-static p-4 h-100 border-0" style="background: var(--cb-bg-secondary);">
                 <h6 class="text-uppercase text-muted fw-bold mb-2">New Site (Target)</h6>
                 <code class="fs-5 text-success text-break"><%= project.newSiteUrl %></code>
             </div>
@@ -29,11 +29,11 @@
     </div>
 
     <div id="initialState" class="text-center py-5">
-        <div class="card p-5 border-0 shadow-sm">
+        <div class="cb-card p-5 border-0 shadow-sm">
             <h4 class="mb-3">Ready to Analyze?</h4>
             <p class="text-muted mb-4">This will crawl both sites and stream comparison results in real-time.</p>
             <div>
-                <button id="startCrawlBtn" class="btn btn-primary btn-lg px-5 shadow">
+                <button id="startCrawlBtn" class="cb-btn cb-btn-primary cb-btn-lg px-5">
                     <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                     Start Analysis
                 </button>
@@ -43,7 +43,7 @@
 
     <div id="resultsArea" style="display:none;">
         
-        <div class="alert alert-info border-0 shadow-sm mb-4" id="progressAlert">
+        <div class="alert alert-info border-0 shadow-sm mb-4" id="progressAlert" style="background: var(--cb-info-light); color: var(--cb-info-dark);">
             <div class="d-flex align-items-center">
                  <div class="spinner-border spinner-border-sm text-info me-3" role="status"></div>
                  <div>
@@ -56,25 +56,19 @@
         <!-- Summary Cards (Clickable) -->
         <div class="row mb-4 g-3">
             <div class="col-md-3">
-                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-primary cursor-pointer" onclick="filterTable('all')">
+                <div class="cb-card text-center p-3 border-0 border-start border-5 border-primary cursor-pointer" onclick="filterTable('all')">
                     <h3 class="display-5 fw-bold text-primary mb-0" id="summaryTotalOld">0</h3>
                     <small class="text-uppercase text-muted fw-bold">Total Scanned</small>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-danger cursor-pointer" onclick="filterTable('Missing')">
+                <div class="cb-card text-center p-3 border-0 border-start border-5 border-danger cursor-pointer" onclick="filterTable('Missing')">
                     <h3 class="display-5 fw-bold text-danger mb-0" id="summaryMissing">0</h3>
                     <small class="text-uppercase text-muted fw-bold">404 / Missing</small>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-success cursor-pointer" onclick="filterTable('New')">
-                    <h3 class="display-5 fw-bold text-success mb-0" id="summaryNew">0</h3>
-                    <small class="text-uppercase text-muted fw-bold">New Pages</small>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-warning cursor-pointer" onclick="filterTable('Meta')">
+                <div class="cb-card text-center p-3 border-0 border-start border-5 border-warning cursor-pointer" onclick="filterTable('Meta')">
                     <h3 class="display-5 fw-bold text-warning mb-0" id="summaryMeta">0</h3>
                     <small class="text-uppercase text-muted fw-bold">Meta Issues</small>
                 </div>
@@ -82,25 +76,24 @@
         </div>
 
         <!-- Results Table -->
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white border-bottom-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+        <div class="cb-card border-0">
+            <div class="card-header border-bottom-0 pt-4 px-4 d-flex justify-content-between align-items-center" style="background: transparent;">
                 <h5 class="mb-0 fw-bold" id="tableTitle">All Issues</h5>
                 <div class="btn-group">
-                    <button class="btn btn-outline-secondary btn-sm active" onclick="filterTable('all')" id="btn-filter-all">All</button>
-                    <button class="btn btn-outline-danger btn-sm" onclick="filterTable('Missing')" id="btn-filter-Missing">Missing</button>
-                    <button class="btn btn-outline-success btn-sm" onclick="filterTable('New')" id="btn-filter-New">New</button>
-                    <button class="btn btn-outline-warning btn-sm" onclick="filterTable('Meta')" id="btn-filter-Meta">Meta Issues</button>
+                    <button class="cb-btn cb-btn-secondary cb-btn-sm active" onclick="filterTable('all')" id="btn-filter-all">All</button>
+                    <button class="cb-btn cb-btn-secondary cb-btn-sm" onclick="filterTable('Missing')" id="btn-filter-Missing">Missing</button>
+                    <button class="cb-btn cb-btn-secondary cb-btn-sm" onclick="filterTable('Meta')" id="btn-filter-Meta">Meta Issues</button>
                 </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" id="resultsTable">
-                        <thead class="table-light">
+                        <thead>
                             <tr>
-                                <th style="width: 35%">Old URL</th>
-                                <th style="width: 35%">New URL</th>
-                                <th style="width: 10%">Status</th>
-                                <th style="width: 20%">Issues</th>
+                                <th style="width: 35%; background: var(--cb-bg-secondary); border-bottom: 1px solid var(--cb-border);">Old URL</th>
+                                <th style="width: 35%; background: var(--cb-bg-secondary); border-bottom: 1px solid var(--cb-border);">New URL</th>
+                                <th style="width: 10%; background: var(--cb-bg-secondary); border-bottom: 1px solid var(--cb-border);">Status</th>
+                                <th style="width: 20%; background: var(--cb-bg-secondary); border-bottom: 1px solid var(--cb-border);">Issues</th>
                             </tr>
                         </thead>
                         <tbody class="border-top-0" id="resultsTableBody">
@@ -139,7 +132,7 @@
 <style>
     .cursor-pointer { cursor: pointer; transition: transform 0.2s; }
     .cursor-pointer:hover { transform: scale(1.02); }
-    .diff-highlight { background-color: #fff3cd; }
+    .diff-highlight { background-color: var(--cb-warning-light); color: var(--cb-warning-dark); }
 </style>
 
 <script>
@@ -154,7 +147,6 @@
     // Counters
     let countTotal = 0;
     let countMissing = 0;
-    let countNew = 0;
     let countMeta = 0;
 
     // Data Store for Modal
@@ -168,7 +160,6 @@
         tbody.innerHTML = '';
         countTotal = 0;
         countMissing = 0;
-        countNew = 0;
         countMeta = 0;
         updateCounters();
         
@@ -208,7 +199,6 @@
         // Update counters
         countTotal++;
         if (result.status === 'Missing') countMissing++;
-        if (result.status === 'New') countNew++;
         if (result.status === 'Matched' && result.issues.length > 0) countMeta++;
 
         updateCounters();
@@ -267,7 +257,6 @@
     function updateCounters() {
         document.getElementById('summaryTotalOld').innerText = countTotal;
         document.getElementById('summaryMissing').innerText = countMissing;
-        document.getElementById('summaryNew').innerText = countNew;
         document.getElementById('summaryMeta').innerText = countMeta;
     }
 
@@ -276,7 +265,6 @@
         let icon = '';
         if (status === 'Matched') { color = 'success'; icon = 'bi-check-circle-fill'; }
         if (status === 'Missing') { color = 'danger'; icon = 'bi-x-circle-fill'; }
-        if (status === 'New') { color = 'info'; icon = 'bi-plus-circle-fill'; }
         if (status === 'Error') { color = 'warning'; icon = 'bi-exclamation-triangle-fill'; }
         return `<span class="badge bg-${color}"><i class="bi ${icon} me-1"></i>${status}</span>`;
     }
@@ -301,8 +289,6 @@
                 row.style.display = '';
             } else if (filterType === 'Missing') {
                 row.style.display = (status === 'Missing' || status === 'Error') ? '' : 'none';
-            } else if (filterType === 'New') {
-                row.style.display = (status === 'New') ? '' : 'none';
             } else if (filterType === 'Meta') {
                 row.style.display = hasMeta ? '' : 'none';
             }

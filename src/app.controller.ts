@@ -7,4 +7,10 @@ export class AppController {
   root() {
     return {};
   }
+
+  @Get('migration')
+  @Render('migration')
+  migration() {
+    return {};
+  }
 }

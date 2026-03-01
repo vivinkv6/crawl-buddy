@@ -1,667 +1,79 @@
 <%- include('partials/header') %>
 
-<div class="container mb-5 mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            
-            <div class="text-center mb-4" id="heroSection">
-                <h1 class="fw-bold text-primary display-4 mb-2">
-                    <i class="bi bi-robot me-2"></i>Crawl Buddy
+<!-- Hero Section -->
+<section class="cb-hero">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <h1 class="cb-hero-title animate-fade-in">
+                    CrawlWise
                 </h1>
-            </div>
-
-            <!-- Creation Form -->
-            <div class="card p-4 shadow-sm mb-4" id="setupCard">
-                <form id="createProjectForm">
-                    <div class="mb-3">
-                        <label for="oldSiteUrl" class="form-label fw-bold">Live Website (Old)</label>
-                        <input type="url" class="form-control" id="oldSiteUrl" name="oldSiteUrl" placeholder="https://current-site.com" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="newSiteUrl" class="form-label fw-bold">Staging Environment (New)</label>
-                        <input type="url" class="form-control" id="newSiteUrl" name="newSiteUrl" placeholder="https://staging-site.com" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="sitemapUrl" class="form-label fw-bold">Sitemap URL (Optional)</label>
-                        <input type="url" class="form-control" id="sitemapUrl" name="sitemapUrl" placeholder="https://current-site.com/sitemap.xml">
-                        <div class="form-text">If provided, we'll crawl these URLs instead of discovering them.</div>
-                    </div>
-                    <div class="mt-4">
-                        <button type="submit" class="btn btn-primary w-100" id="startBtn">
-                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                            Analyze
-                        </button>
-                    </div>
-                </form>
+                <p class="cb-hero-subtitle animate-fade-in animate-delay-1">
+                    Smart SEO tools for professionals
+                </p>
+                <p class="hero-description animate-fade-in animate-delay-2">
+                    Free online tools to scrape websites, check SEO issues, and validate migrations. 
+                    Detect 404s, compare meta tags, and audit your site — no signup required.
+                </p>
             </div>
         </div>
     </div>
-</div>
+</section>
 
-<div class="container-fluid px-4 mb-5">
-    <div class="row justify-content-center">
-        <div class="col-12">
-            <!-- Analysis Area (Hidden initially) -->
-            <div id="analysisArea" style="display:none;">
-                
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                     <h4 class="mb-0">Analysis Results <span class="badge bg-secondary ms-2 d-none" id="projectIdDisplay"></span></h4>
-                     <a href="#" class="btn btn-success shadow-sm" id="exportBtn" style="display:none;">
-                        <i class="bi bi-file-earmark-excel-fill"></i> Download Report
-                    </a>
-                </div>
+<!-- Tools Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4 justify-content-center">
+            <!-- Website Scraper -->
+            <div class="col-md-6 col-lg-4">
+                <a href="/scraper" class="tool-card text-decoration-none">
+                    <div class="tool-card-icon">
+                        <i class="bi bi-globe2"></i>
+                    </div>
+                    <h3 class="tool-card-title">Website Scraper</h3>
+                    <p class="tool-card-desc">
+                        Extract URLs, meta tags, images, content, and technical SEO data from any website.
+                    </p>
+                </a>
+            </div>
 
-                <div class="alert alert-info border-0 shadow-sm mb-4" id="progressAlert">
-                    <div class="d-flex align-items-center">
-                         <div class="spinner-border spinner-border-sm text-info me-3" role="status"></div>
-                         <div>
-                             <strong>Analysis in Progress...</strong>
-                             <span id="progressText">Crawling and comparing pages...</span>
-                         </div>
+            <!-- Migration Checker -->
+            <div class="col-md-6 col-lg-4">
+                <a href="/migration" class="tool-card text-decoration-none" style="--cb-primary: var(--cb-success);">
+                    <div class="tool-card-icon" style="background: var(--cb-success-light); color: var(--cb-success-dark);">
+                        <i class="bi bi-arrow-left-right"></i>
                     </div>
-                </div>
+                    <h3 class="tool-card-title">Migration Checker</h3>
+                    <p class="tool-card-desc">
+                        Compare old vs new website URLs. Detect missing pages and redirect issues.
+                    </p>
+                </a>
+            </div>
 
-                <!-- Summary Cards -->
-                <div class="row mb-4 g-3">
-                    <div class="col-md-3">
-                        <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-primary cursor-pointer" id="card-filter-all">
-                            <h3 class="display-5 fw-bold text-primary mb-0" id="summaryTotalOld">0</h3>
-                            <small class="text-uppercase text-muted fw-bold">Total Scanned</small>
-                        </div>
+            <!-- URL Extractor -->
+            <div class="col-md-6 col-lg-4">
+                <a href="/scraper/url-extractor" class="tool-card text-decoration-none" style="--cb-primary: #8b5cf6;">
+                    <div class="tool-card-icon" style="background: var(--cb-info-light); color: var(--cb-info-dark);">
+                        <i class="bi bi-link-45deg"></i>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-danger cursor-pointer" id="card-filter-Missing">
-                            <h3 class="display-5 fw-bold text-danger mb-0" id="summaryMissing">0</h3>
-                            <small class="text-uppercase text-muted fw-bold">404 / Missing</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-success cursor-pointer" id="card-filter-New">
-                            <h3 class="display-5 fw-bold text-success mb-0" id="summaryNew">0</h3>
-                            <small class="text-uppercase text-muted fw-bold">New Pages</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card text-center p-3 border-0 shadow-sm h-100 border-start border-5 border-warning cursor-pointer" id="card-filter-Meta">
-                            <h3 class="display-5 fw-bold text-warning mb-0" id="summaryMeta">0</h3>
-                            <small class="text-uppercase text-muted fw-bold">Meta Issues</small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Results Table -->
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white border-bottom-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                        <div class="btn-group">
-                            <button class="btn btn-outline-secondary btn-sm active" id="btn-filter-all">All</button>
-                            <button class="btn btn-outline-danger btn-sm" id="btn-filter-Missing">Missing</button>
-                            <button class="btn btn-outline-success btn-sm" id="btn-filter-New">New</button>
-                            <button class="btn btn-outline-warning btn-sm" id="btn-filter-Meta">Meta Issues</button>
-                        </div>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
-                            <table class="table table-hover align-middle mb-0" id="resultsTable" style="table-layout: fixed;">
-                                <thead class="table-light sticky-top">
-                                    <tr>
-                                        <th style="width: 35%">Old URL</th>
-                                        <th style="width: 35%">New URL</th>
-                                        <th style="width: 10%">Status</th>
-                                        <th style="width: 20%">Issues</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="border-top-0" id="resultsTableBody">
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="text-center mt-4">
-                     <button class="btn btn-outline-secondary" id="btn-new-audit">Start New Audit</button>
-                </div>
+                    <h3 class="tool-card-title">URL Extractor</h3>
+                    <p class="tool-card-desc">
+                        Extract all indexed page URLs from any sitemap. Fast and simple URL collection.
+                    </p>
+                </a>
             </div>
         </div>
     </div>
-</div>
-
-<!-- Meta Comparison Modal -->
-<div class="modal fade" id="metaModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Meta Comparison</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-         <!-- Content injected via JS -->
-      </div>
-    </div>
-  </div>
-</div>
+</section>
 
 <style>
-    .cursor-pointer { cursor: pointer; transition: transform 0.2s; }
-    .cursor-pointer:hover { transform: scale(1.02); }
-    .sticky-top { position: sticky; top: 0; z-index: 1020; }
+    .hero-description {
+        font-size: 1.1rem;
+        color: var(--cb-gray-500);
+        max-width: 600px;
+        margin: 1.5rem auto 0;
+        line-height: 1.7;
+    }
 </style>
-
-<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-<script>
-    // State
-    let projectId = null;
-    let eventSource = null;
-    const rowDataStore = new Map();
-    
-    // Elements
-    const setupCard = document.getElementById('setupCard');
-    const heroSection = document.getElementById('heroSection');
-    const analysisArea = document.getElementById('analysisArea');
-    const createProjectForm = document.getElementById('createProjectForm');
-    const startBtn = document.getElementById('startBtn');
-    const tbody = document.getElementById('resultsTableBody');
-    const exportBtn = document.getElementById('exportBtn');
-    const progressAlert = document.getElementById('progressAlert');
-    
-    // Toast Container (Create if not exists)
-    let toastContainer = document.querySelector('.toast-container');
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-        document.body.appendChild(toastContainer);
-    }
-
-    function showToast(message, type = 'danger') {
-        const toastEl = document.createElement('div');
-        toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
-        toastEl.setAttribute('role', 'alert');
-        toastEl.setAttribute('aria-live', 'assertive');
-        toastEl.setAttribute('aria-atomic', 'true');
-        
-        toastEl.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        `;
-        
-        toastContainer.appendChild(toastEl);
-        const toast = new bootstrap.Toast(toastEl);
-        toast.show();
-        
-        // Cleanup after hidden
-        toastEl.addEventListener('hidden.bs.toast', () => {
-            toastEl.remove();
-        });
-    }
-
-    // Counters
-    let countTotal = 0;
-    let countMissing = 0;
-    let countNew = 0;
-    let countMeta = 0;
-
-    createProjectForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // UI Loading State
-        startBtn.disabled = true;
-        startBtn.querySelector('.spinner-border').classList.remove('d-none');
-        
-        const oldSiteUrl = document.getElementById('oldSiteUrl').value;
-        const newSiteUrl = document.getElementById('newSiteUrl').value;
-        const sitemapUrl = document.getElementById('sitemapUrl').value;
-
-        try {
-            // 1. Create Project
-            const response = await axios.post('/projects', { oldSiteUrl, newSiteUrl, sitemapUrl }, {
-                headers: { 'Accept': 'application/json' }
-            });
-            
-            projectId = response.data.id;
-            document.getElementById('projectIdDisplay').innerText = `ID: ${projectId}`;
-            // exportBtn.href = `/projects/${projectId}/export`; // Removed as we use click handler
-            
-            // 2. Switch View
-            setupCard.style.display = 'none';
-            heroSection.style.display = 'none';
-            analysisArea.style.display = 'block';
-            
-            // 3. Start Streaming
-            startStreaming(projectId);
-
-        } catch (error) {
-            // Check for specific error message from backend
-            const msg = error.response?.data?.message || error.message || 'Failed to start analysis';
-            showToast(msg, 'danger');
-            
-            startBtn.disabled = false;
-            startBtn.querySelector('.spinner-border').classList.add('d-none');
-        }
-    });
-
-    function startStreaming(id) {
-        // Reset State
-        tbody.innerHTML = '';
-        countTotal = 0; countMissing = 0; countNew = 0; countMeta = 0;
-        updateCounters();
-        rowDataStore.clear();
-
-        eventSource = new EventSource(`/projects/${id}/stream`);
-        
-        eventSource.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-            
-            if (msg.type === 'result') {
-                addResultRow(msg.result);
-            } else if (msg.type === 'complete') {
-                finishAnalysis();
-            } else if (msg.type === 'error') {
-                eventSource.close();
-                progressAlert.className = 'alert alert-danger border-0 shadow-sm mb-4';
-                progressAlert.innerHTML = `<strong>Error:</strong> ${msg.message}`;
-            }
-        };
-        
-        eventSource.onerror = () => {
-             eventSource.close();
-        };
-    }
-
-    function addResultRow(result) {
-        const rowId = Math.random().toString(36).substr(2, 9);
-        rowDataStore.set(rowId, result);
-
-        countTotal++;
-        if (result.status === 'Missing') countMissing++;
-        if (result.status === 'New') countNew++;
-        if (result.status === 'Matched' && result.issues.length > 0) countMeta++;
-        updateCounters();
-
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-status', result.status);
-        tr.setAttribute('data-has-meta', (result.status === 'Matched' && result.issues.length > 0) ? 'true' : 'false');
-
-        // Check current active filter
-        const activeFilterBtn = document.querySelector('.btn-group .btn.active');
-        const activeFilter = activeFilterBtn ? activeFilterBtn.id.replace('btn-filter-', '') : 'all';
-        
-        // Determine visibility based on active filter
-        let isVisible = false;
-        if (activeFilter === 'all') {
-            isVisible = true;
-        } else if (activeFilter === 'Missing') {
-            isVisible = (result.status === 'Missing' || result.status === 'Error');
-        } else if (activeFilter === 'New') {
-            isVisible = (result.status === 'New');
-        } else if (activeFilter === 'Meta') {
-            isVisible = (result.status === 'Matched' && result.issues.length > 0);
-        }
-
-        if (!isVisible) {
-            tr.style.display = 'none';
-        }
-
-        // Hide clean rows by default IF we are in 'all' mode but user usually wants to see issues?
-        // Actually, if filter is 'all', show everything.
-        // But previously we had logic to hide clean matched rows.
-        // Let's keep that logic ONLY if the filter is 'all' AND we want to hide clean rows?
-        // No, let's simplify. 'All' shows everything.
-        // If the user wants to hide clean rows, they can use specific filters.
-        
-        let actionHtml = '';
-        let issuesHtml = '';
-        
-        if (result.status === 'Matched' && result.issues.length > 0) {
-             const count = result.issues.length;
-             // Badge integrated into button (Notification style)
-             // Using data-row-id for event delegation
-             actionHtml = `
-                <button class="btn btn-sm btn-outline-primary position-relative view-details-btn" data-row-id="${rowId}">
-                    View Details
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                        ${count}
-                        <span class="visually-hidden">issues</span>
-                    </span>
-                </button>
-             `;
-        } else {
-             issuesHtml = result.issues.map(i => `<span class="badge bg-danger-subtle text-danger border border-danger-subtle mb-1">${i}</span>`).join(' ');
-        }
-
-        tr.innerHTML = `
-            <td><div class="text-truncate w-100" title="${result.oldUrl || '-'}"><small class="font-monospace text-muted">${result.oldUrl || '-'}</small></div></td>
-            <td><div class="text-truncate w-100" title="${result.newUrl || '-'}"><small class="font-monospace text-muted">${result.newUrl || '-'}</small></div></td>
-            <td>${getStatusBadge(result.status)}</td>
-            <td>${issuesHtml} ${actionHtml}</td>
-        `;
-        
-        // Remove "No Data" row if it exists and we are adding a visible row
-        const existingNoData = tbody.querySelector('.no-data-row');
-        if (existingNoData && isVisible) {
-            existingNoData.remove();
-        }
-        
-        tbody.appendChild(tr);
-    }
-
-    function finishAnalysis() {
-        if (eventSource) eventSource.close();
-        progressAlert.className = 'alert alert-success border-0 shadow-sm mb-4';
-        progressAlert.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i><strong>Analysis Complete!</strong> Scanned ${countTotal} URLs.`;
-        exportBtn.style.display = 'inline-block';
-    }
-    
-    // Start New Audit / Reset Form
-    function resetForm() {
-        // Stop streaming if active
-        if (eventSource) {
-            eventSource.close();
-            eventSource = null;
-        }
-        
-        // Clear data
-        tbody.innerHTML = '';
-        rowDataStore.clear();
-        countTotal = 0; countMissing = 0; countNew = 0; countMeta = 0;
-        updateCounters();
-
-        // UI Reset
-        setupCard.style.display = 'block';
-        heroSection.style.display = 'block';
-        analysisArea.style.display = 'none';
-        
-        startBtn.disabled = false;
-        const spinner = startBtn.querySelector('.spinner-border');
-        if (spinner) spinner.classList.add('d-none');
-        
-        // Reset progress alert
-        progressAlert.className = 'alert alert-info border-0 shadow-sm mb-4';
-        progressAlert.innerHTML = `
-            <div class="d-flex align-items-center">
-                 <div class="spinner-border spinner-border-sm text-info me-3" role="status"></div>
-                 <div>
-                     <strong>Analysis in Progress...</strong>
-                     <span id="progressText">Crawling and comparing pages...</span>
-                 </div>
-            </div>
-        `;
-        
-        // Reset export button
-        exportBtn.style.display = 'none';
-        exportBtn.removeAttribute('href'); // Remove href as we handle click now
-        exportBtn.classList.remove('disabled');
-        exportBtn.innerHTML = '<i class="bi bi-file-earmark-excel-fill"></i> Download Report';
-    }
-
-    // Export Logic
-    exportBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        
-        if (!projectId) return;
-        
-        // Get Active Filter
-        const activeFilterBtn = document.querySelector('.btn-group .btn.active');
-        const activeFilter = activeFilterBtn ? activeFilterBtn.id.replace('btn-filter-', '') : 'all';
-        
-        // Loading State
-        exportBtn.classList.add('disabled');
-        const originalText = exportBtn.innerHTML;
-        exportBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...`;
-        
-        try {
-            const response = await axios.get(`/projects/${projectId}/export`, {
-                params: { filter: activeFilter },
-                responseType: 'blob' // Important for binary data
-            });
-            
-            // Create download link
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            
-            // Get filename from header or fallback
-            const contentDisposition = response.headers['content-disposition'];
-            let fileName = `crawlbuddy_report_${projectId}_${activeFilter}.xlsx`;
-            if (contentDisposition) {
-                const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-                if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
-            }
-            
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-            
-            showToast('Report downloaded successfully!', 'success');
-            
-        } catch (error) {
-            console.error('Export failed:', error);
-            showToast('Failed to download report. Please try again.', 'danger');
-        } finally {
-            // Reset Button
-            exportBtn.classList.remove('disabled');
-            exportBtn.innerHTML = originalText;
-        }
-    });
-
-    // Attach event listener for Start New Audit button
-    const btnNewAudit = document.getElementById('btn-new-audit');
-    if (btnNewAudit) {
-        btnNewAudit.addEventListener('click', resetForm);
-    }
-
-    // Make resetForm global just in case
-    window.resetForm = resetForm;
-
-    function updateCounters() {
-        document.getElementById('summaryTotalOld').innerText = countTotal;
-        document.getElementById('summaryMissing').innerText = countMissing;
-        document.getElementById('summaryNew').innerText = countNew;
-        document.getElementById('summaryMeta').innerText = countMeta;
-    }
-
-    function getStatusBadge(status) {
-        let color = 'secondary';
-        let icon = '';
-        if (status === 'Matched') { color = 'success'; icon = 'bi-check-circle-fill'; }
-        if (status === 'Missing') { color = 'danger'; icon = 'bi-x-circle-fill'; }
-        if (status === 'New') { color = 'info'; icon = 'bi-plus-circle-fill'; }
-        if (status === 'Error') { color = 'warning'; icon = 'bi-exclamation-triangle-fill'; }
-        return `<span class="badge bg-${color}"><i class="bi ${icon} me-1"></i>${status}</span>`;
-    }
-
-    // Filter Logic
-    function applyFilter(filterType) {
-        // Update UI state for buttons
-        document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
-        const activeBtn = document.getElementById(`btn-filter-${filterType}`);
-        if (activeBtn) activeBtn.classList.add('active');
-
-        const rows = tbody.querySelectorAll('tr:not(.no-data-row)');
-        let visibleCount = 0;
-        
-        // Remove existing no-data message if any
-        const existingNoData = tbody.querySelector('.no-data-row');
-        if (existingNoData) existingNoData.remove();
-
-        rows.forEach(row => {
-            const status = row.getAttribute('data-status');
-            const hasMeta = row.getAttribute('data-has-meta') === 'true';
-            
-            let shouldShow = false;
-            if (filterType === 'all') {
-                shouldShow = true;
-            } else if (filterType === 'Missing') {
-                shouldShow = (status === 'Missing' || status === 'Error');
-            } else if (filterType === 'New') {
-                shouldShow = (status === 'New');
-            } else if (filterType === 'Meta') {
-                shouldShow = hasMeta;
-            }
-            
-            if (shouldShow) {
-                row.style.display = 'table-row';
-                visibleCount++;
-            } else {
-                row.style.display = 'none';
-            }
-        });
-
-        if (visibleCount === 0) {
-            const tr = document.createElement('tr');
-            tr.className = 'no-data-row';
-            tr.innerHTML = `<td colspan="4" class="text-center py-4 text-muted"><i class="bi bi-inbox me-2"></i>No data found for this filter</td>`;
-            tbody.appendChild(tr);
-        }
-    }
-
-    // Attach Filter Event Listeners
-    ['all', 'Missing', 'New', 'Meta'].forEach(type => {
-        const btn = document.getElementById(`btn-filter-${type}`);
-        if (btn) {
-            btn.addEventListener('click', () => applyFilter(type));
-        }
-    });
-    
-    // Attach Summary Card Event Listeners
-    const summaryCards = {
-        'summaryTotalOld': 'all',
-        'summaryMissing': 'Missing',
-        'summaryNew': 'New',
-        'summaryMeta': 'Meta'
-    };
-    
-    Object.keys(summaryCards).forEach(id => {
-        const card = document.getElementById(id).closest('.card');
-        if (card) {
-            card.addEventListener('click', () => applyFilter(summaryCards[id]));
-        }
-    });
-
-    // Global fallback just in case
-    window.filterTable = applyFilter;
-
-    // Event Delegation for View Details Button
-    document.getElementById('resultsTableBody').addEventListener('click', function(e) {
-        // Traverse up to find the button if clicked on icon/span
-        const btn = e.target.closest('.view-details-btn');
-        if (btn) {
-            const rowId = btn.getAttribute('data-row-id');
-            if (rowId) {
-                openMetaModal(rowId);
-            }
-        }
-    });
-
-    window.openMetaModal = function(rowId) {
-        const data = rowDataStore.get(rowId);
-        if (!data) return;
-        const oldD = data.oldData || {};
-        const newD = data.newData || {};
-        const issues = data.issues || [];
-        
-        // Helper to check if a specific field has an issue
-        const hasIssue = (type) => issues.some(i => i.toLowerCase().includes(type.toLowerCase()));
-        
-        // Helper to generate badges for new values
-        const getBadges = (type) => {
-             if (hasIssue(type)) {
-                 return `<span class="badge bg-danger ms-2">Mismatch</span>`;
-             }
-             return '';
-        };
-
-        const renderRow = (label, key) => {
-            let oldVal = oldD[key];
-            let newVal = newD[key];
-            
-            // Handle arrays (like schemas)
-            if (Array.isArray(oldVal)) oldVal = oldVal.join(', ');
-            if (Array.isArray(newVal)) newVal = newVal.join(', ');
-            
-            return `
-            <tr>
-                <td class="fw-bold text-muted">${label}</td>
-                <td class="text-break">${oldVal || '<em class="text-muted">Empty</em>'}</td>
-                <td class="text-break">
-                    ${newVal || '<em class="text-muted">Empty</em>'}
-                    ${getBadges(label)}
-                </td>
-            </tr>
-        `};
-
-        const tableHtml = `
-            <div class="table-responsive">
-                <table class="table table-bordered align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th style="width: 20%">Meta Detail</th>
-                            <th style="width: 40%" class="text-primary">Old Site Value</th>
-                            <th style="width: 40%" class="text-success">New Site Value</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${renderRow('Title', 'title')}
-                        ${renderRow('Description', 'description')}
-                        ${renderRow('Keywords', 'keywords')}
-                        ${renderRow('OG Title', 'ogTitle')}
-                        ${renderRow('OG Description', 'ogDescription')}
-                        ${renderRow('OG Image', 'ogImage')}
-                        ${renderRow('Schemas', 'schemas')}
-                        ${renderRow('H1', 'h1')}
-                        ${renderRow('Canonical', 'canonical')}
-                        ${renderRow('Robots', 'robots')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-        
-        const modalBody = document.querySelector('#metaModal .modal-body');
-        modalBody.innerHTML = tableHtml;
-        
-        const modalEl = document.getElementById('metaModal');
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-    }
-</script>
-
-<!-- Floating Info Button -->
-<button type="button" class="btn btn-primary rounded-circle shadow-lg d-flex align-items-center justify-content-center" 
-        style="position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; z-index: 1050;" 
-        data-bs-toggle="modal" data-bs-target="#infoModal" title="About Crawl Buddy">
-    <i class="bi bi-info-lg fs-3"></i>
-</button>
-
-<!-- Info Modal -->
-<div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header border-bottom-0 pb-0">
-                <h5 class="modal-title fw-bold text-primary"><i class="bi bi-robot me-2"></i>About Crawl Buddy</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body pt-4 pb-5">
-                <h5 class="text-primary fw-bold mb-3">Your Safety Net for Website Migrations</h5>
-                <p class="text-muted text-start mb-4" style="line-height: 1.6;">
-                    Moving to a new website shouldn't mean losing your hard-earned search rankings. Crawl Buddy acts as your personal migration assistant, automatically checking every page on your old site against your new one. It spots missing pages, broken links, and hidden errors instantly so you can fix them before your customers—or Google—ever notice.
-                </p>
-                <h6 class="fw-bold mb-3">Key Features:</h6>
-                <ul class="list-unstyled text-muted" style="line-height: 1.8;">
-                    <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Smart Comparison:</strong> Instantly compares your old and new sites side-by-side.</li>
-                    <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Sitemap Power:</strong> Supports custom Sitemaps for complete crawl coverage.</li>
-                    <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Deep SEO Analysis:</strong> Checks Keywords, Schema Markup, H1 Tags, Titles, and Descriptions.</li>
-                    <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Social Media Validation:</strong> Verifies Open Graph (OG) tags for perfect social sharing.</li>
-                    <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Redirect Intelligence:</strong> Verifies if old links correctly redirect to the new site (301s).</li>
-                    <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Error Spotting:</strong> Finds broken links (404s) and missing pages automatically.</li>
-                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Simple Reports:</strong> Gives you clear, actionable lists of what needs fixing.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
 
 <%- include('partials/footer') %>

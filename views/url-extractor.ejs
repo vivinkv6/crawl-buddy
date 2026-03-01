@@ -1,0 +1,106 @@
+<%
+const page = 'url-extractor';
+%>
+<%- include('partials/header') %>
+
+<link rel="stylesheet" href="/stylesheets/scraper.css">
+
+<div id="notificationContainer"></div>
+
+<div class="scraper-container">
+  <div class="scraper-header">
+    <h1 class="scraper-title">Website URL Extractor</h1>
+    <p class="scraper-subtitle">Extract all indexed page URLs from any sitemap</p>
+  </div>
+
+  <div class="scraper-card" id="setupCard">
+    <form id="extractForm" class="scrape-form">
+      <div class="form-section">
+        <div class="url-input-group">
+          <label class="input-label" for="sitemapUrl">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Sitemap URL
+          </label>
+          <div class="input-wrapper">
+            <input type="url" id="sitemapUrl" class="url-input" placeholder="https://example.com/sitemap.xml" required>
+          </div>
+          <span class="input-hint">Enter the XML sitemap URL to extract all indexed URLs</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-scrape" id="extractBtn">
+          <span class="btn-icon">
+            <svg class="spinner d-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
+            <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </span>
+          <span class="btn-text">Extract URLs</span>
+        </button>
+      </div>
+    </form>
+
+    <div class="streaming-status" id="streamingStatus">
+      <div class="status-indicator"></div>
+      <div class="status-content">
+        <span class="status-text">Ready</span>
+        <span class="status-detail" id="statusDetail"></span>
+      </div>
+      <div class="progress-container d-none" id="progressContainer">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section d-none" id="resultCard">
+    <div class="results-header">
+      <div class="results-header-left">
+        <h2 class="results-title">Extracted URLs</h2>
+        <span class="results-count" id="resultsCount">0 URLs</span>
+      </div>
+      <div class="results-header-right">
+
+        <button type="button" class="btn-download-option" id="btnExportExcel">
+          <i class="bi bi-file-earmark-excel"></i>
+          Export Excel
+        </button>
+        <button type="button" class="btn-reset" id="btnNewExtract">
+          <i class="bi bi-plus-circle"></i>
+          New Extraction
+        </button>
+      </div>
+    </div>
+
+    <div class="streaming-status" id="streamingStatusResults" style="max-width: 400px; margin: 1rem 0 1rem 1.25rem;">
+      <div class="d-flex align-items-center gap-3">
+        <div class="status-indicator"></div>
+        <div class="status-content flex-grow-1">
+          <span class="status-text">Ready</span>
+          <span class="status-detail" id="statusDetailResults"></span>
+        </div>
+        <span class="badge bg-primary" id="progressText">0 / 0</span>
+      </div>
+    </div>
+
+    
+    <div class="results-content">
+      <div class="table-responsive">
+        <table class="table results-table">
+          <thead>
+            <tr>
+              <th style="width: 80px;">Sl No</th>
+              <th>URL</th>
+              <th style="width: 120px;" class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="urlsTableBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/javascripts/notification.js"></script>
+<script src="/javascripts/url-extractor.js"></script>
+
+<%- include('partials/footer') %>

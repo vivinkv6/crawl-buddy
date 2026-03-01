@@ -1,0 +1,647 @@
+<%
+const page = 'migration';
+%>
+<%- include('partials/header') %>
+
+<link rel="stylesheet" href="/stylesheets/scraper.css">
+
+<div id="notificationContainer"></div>
+
+<div class="scraper-container">
+  <div class="scraper-header">
+    <h1 class="scraper-title">Migration Checker</h1>
+    <p class="scraper-subtitle">Compare URLs and detect SEO issues before migrating</p>
+  </div>
+
+  <!-- Setup Form -->
+  <div class="scraper-card" id="setupCard">
+    <form id="createProjectForm" class="scrape-form">
+      <div class="form-section">
+        <div class="url-input-group">
+          <label class="input-label" for="oldSiteUrl">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            Live Website (Old)
+          </label>
+          <div class="input-wrapper">
+            <input type="url" id="oldSiteUrl" class="url-input" placeholder="https://current-site.com" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="url-input-group">
+          <label class="input-label" for="newSiteUrl">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Staging Environment (New)
+          </label>
+          <div class="input-wrapper">
+            <input type="url" id="newSiteUrl" class="url-input" placeholder="https://staging-site.com" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="url-input-group">
+          <label class="input-label" for="sitemapUrl">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Sitemap URL (Optional)
+          </label>
+          <div class="input-wrapper">
+            <input type="url" id="sitemapUrl" class="url-input" placeholder="https://current-site.com/sitemap.xml">
+          </div>
+          <span class="input-hint">If provided, we'll crawl these URLs instead of discovering them</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-scrape" id="startBtn">
+          <span class="btn-icon">
+            <svg class="spinner d-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
+            <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </span>
+          <span class="btn-text">Start Analysis</span>
+        </button>
+      </div>
+    </form>
+
+    <div class="streaming-status" id="streamingStatus">
+      <div class="status-indicator"></div>
+      <div class="status-content">
+        <span class="status-text">Ready</span>
+        <span class="status-detail" id="statusDetail"></span>
+      </div>
+      <div class="progress-container d-none" id="progressContainer">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Results Section -->
+<div class="results-section d-none" id="analysisArea">
+  <div class="results-header">
+    <div class="results-header-left">
+      <h2 class="results-title">Analysis Results</h2>
+      <span class="results-count" id="resultsCount">0 pages</span>
+    </div>
+    <div class="results-header-right">
+      <button class="btn-download" id="exportBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Report
+      </button>
+    </div>
+  </div>
+
+  <div class="results-stats" id="resultsStats">
+    <div class="stat-item">
+      <i class="bi bi-collection"></i>
+      <span class="stat-value" id="summaryTotalOld">0</span>
+      <span class="stat-label">Total Scanned</span>
+    </div>
+    <div class="stat-item">
+      <i class="bi bi-x-circle"></i>
+      <span class="stat-value" id="summaryMissing">0</span>
+      <span class="stat-label">404 / Missing</span>
+    </div>
+    <div class="stat-item">
+      <i class="bi bi-exclamation-triangle"></i>
+      <span class="stat-value" id="summaryMeta">0</span>
+      <span class="stat-label">Meta Issues</span>
+    </div>
+  </div>
+
+  <div class="results-content">
+    <div class="filter-bar">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn filter-btn-danger" data-filter="Missing">Missing</button>
+      <button class="filter-btn filter-btn-warning" data-filter="Meta">Meta Issues</button>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Old URL</th>
+            <th>New URL</th>
+            <th>Status</th>
+            <th>Issues</th>
+          </tr>
+        </thead>
+        <tbody id="resultsTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="results-footer">
+    <button class="btn-reset" id="btn-new-audit">
+      <i class="bi bi-plus-circle"></i>
+      Start New Audit
+    </button>
+  </div>
+</div>
+
+<!-- Meta Comparison Modal -->
+<div class="modal fade" id="metaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Meta Comparison</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .results-section {
+    max-width: 1400px;
+    margin: 0 auto 3rem;
+    padding: 0 1rem;
+    border-radius: 0;
+  }
+
+  .results-footer {
+    padding: 1.5rem 2rem;
+    text-align: center;
+    border-top: 1px solid var(--cb-gray-100);
+  }
+
+  .btn-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--cb-gray-100);
+    border: none;
+    border-radius: 0;
+    color: var(--cb-gray-700);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-reset:hover {
+    background: var(--cb-gray-200);
+    color: var(--cb-gray-800);
+  }
+
+  .filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--cb-gray-100);
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--cb-gray-200);
+    background: var(--cb-bg);
+    border-radius: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--cb-gray-600);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .filter-btn:hover {
+    border-color: var(--cb-primary);
+    color: var(--cb-primary);
+  }
+
+  .filter-btn.active {
+    background: var(--cb-primary);
+    border-color: var(--cb-primary);
+    color: white;
+  }
+
+  .filter-btn-danger.active {
+    background: var(--cb-danger);
+    border-color: var(--cb-danger);
+  }
+
+  .filter-btn-success.active {
+    background: var(--cb-success);
+    border-color: var(--cb-success);
+  }
+
+  .filter-btn-warning.active {
+    background: var(--cb-warning);
+    border-color: var(--cb-warning);
+  }
+
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .results-table th {
+    background: var(--cb-gray-50);
+    padding: 0.875rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--cb-gray-500);
+    border-bottom: 1px solid var(--cb-gray-100);
+  }
+
+  .results-table td {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--cb-gray-100);
+    font-size: 0.9rem;
+  }
+
+  .results-table tr:hover {
+    background: var(--cb-gray-50);
+  }
+
+  .results-table .url-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .results-table .url-cell a {
+    color: var(--cb-gray-600);
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 0.8rem;
+  }
+
+  .results-table .url-cell a:hover {
+    color: var(--cb-primary);
+  }
+
+  .badge-missing {
+    background: var(--cb-danger-light);
+    color: var(--cb-danger);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .badge-matched {
+    background: var(--cb-gray-100);
+    color: var(--cb-gray-600);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .issue-badge {
+    display: inline-block;
+    background: var(--cb-warning-light); color: var(--cb-warning-dark);
+    padding: 0.2rem 0.5rem;
+    border-radius: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin: 0.125rem;
+  }
+
+  .btn-view-details {
+    padding: 0.375rem 0.75rem;
+    background: var(--cb-bg);
+    border: 1px solid var(--cb-primary);
+    color: var(--cb-primary);
+    border-radius: 0;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-view-details:hover {
+    background: var(--cb-primary);
+    color: white;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--cb-gray-500);
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 768px) {
+    .results-table .url-cell {
+      max-width: 150px;
+    }
+    
+    .filter-bar {
+      justify-content: center;
+    }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+  const page = 'migration';
+  let projectId = null;
+  let eventSource = null;
+  const rowDataStore = new Map();
+  
+  const setupCard = document.getElementById('setupCard');
+  const analysisArea = document.getElementById('analysisArea');
+  const createProjectForm = document.getElementById('createProjectForm');
+  const startBtn = document.getElementById('startBtn');
+  const tbody = document.getElementById('resultsTableBody');
+  const exportBtn = document.getElementById('exportBtn');
+  const streamingStatus = document.getElementById('streamingStatus');
+  const statusIndicator = streamingStatus.querySelector('.status-indicator');
+  const statusText = streamingStatus.querySelector('.status-text');
+  const statusDetail = document.getElementById('statusDetail');
+  const progressContainer = document.getElementById('progressContainer');
+  const progressBar = document.getElementById('progressBar');
+  const resultsCount = document.getElementById('resultsCount');
+
+  let countTotal = 0;
+  let countMissing = 0;
+  let countMeta = 0;
+  let currentFilter = 'all';
+
+  const setStatus = (state, text, detail = '') => {
+    statusIndicator.className = 'status-indicator';
+    if (state === 'active') {
+      statusIndicator.classList.add('active');
+      statusText.textContent = text;
+    } else if (state === 'error') {
+      statusIndicator.classList.add('error');
+      statusText.textContent = text;
+    } else {
+      statusText.textContent = text;
+    }
+    statusDetail.textContent = detail;
+  };
+
+  const setProgress = (percent) => {
+    progressContainer.classList.remove('d-none');
+    progressBar.style.width = `${percent}%`;
+  };
+
+  createProjectForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    startBtn.disabled = true;
+    startBtn.querySelector('.spinner').classList.remove('d-none');
+    startBtn.querySelector('.play-icon').classList.add('d-none');
+    
+    const oldSiteUrl = document.getElementById('oldSiteUrl').value;
+    const newSiteUrl = document.getElementById('newSiteUrl').value;
+    const sitemapUrl = document.getElementById('sitemapUrl').value;
+
+    try {
+      const response = await axios.post('/projects', { oldSiteUrl, newSiteUrl, sitemapUrl }, {
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      projectId = response.data.id;
+      
+      setupCard.style.display = 'none';
+      analysisArea.classList.remove('d-none');
+      
+      startStreaming(projectId);
+
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message || 'Failed to start analysis';
+      showError(msg);
+      
+      startBtn.disabled = false;
+      startBtn.querySelector('.spinner').classList.add('d-none');
+      startBtn.querySelector('.play-icon').classList.remove('d-none');
+    }
+  });
+
+  function startStreaming(id) {
+    tbody.innerHTML = '';
+    countTotal = 0; countMissing = 0; countMeta = 0;
+    updateCounters();
+    rowDataStore.clear();
+    setStatus('active', 'Analyzing...', 'Comparing pages');
+    progressBar.style.width = '0%';
+    progressContainer.classList.remove('d-none');
+
+    eventSource = new EventSource(`/projects/${id}/stream`);
+    
+    eventSource.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      
+      if (msg.type === 'result') {
+        addResultRow(msg.result);
+      } else if (msg.type === 'complete') {
+        finishAnalysis();
+      } else if (msg.type === 'error') {
+        eventSource.close();
+        setStatus('error', 'Error', msg.message);
+      }
+    };
+    
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
+  }
+
+  function addResultRow(result) {
+    const rowId = Math.random().toString(36).substr(2, 9);
+    rowDataStore.set(rowId, result);
+
+    countTotal++;
+    if (result.status === 'Missing') countMissing++;
+    if (result.status === 'Matched' && result.issues.length > 0) countMeta++;
+    updateCounters();
+    setProgress(50);
+
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-status', result.status);
+    tr.setAttribute('data-has-meta', (result.status === 'Matched' && result.issues.length > 0) ? 'true' : 'false');
+    
+    const isVisible = shouldShowRow(result.status, result.issues);
+    if (!isVisible) tr.style.display = 'none';
+
+    let issuesHtml = '';
+    let actionHtml = '';
+    
+    if (result.status === 'Matched' && result.issues.length > 0) {
+      actionHtml = `<button class="btn-view-details" data-row-id="${rowId}">View Details</button>`;
+    } else if (result.status === 'New') {
+      // New pages don't have issues - they're just new content
+    } else if (result.status !== 'Matched') {
+      issuesHtml = result.issues.map(i => `<span class="issue-badge">${i}</span>`).join('');
+    }
+
+    tr.innerHTML = `
+      <td class="url-cell" title="${result.oldUrl || '-'}">${result.oldUrl || '-'}</td>
+      <td class="url-cell" title="${result.newUrl || '-'}">${result.newUrl || '-'}</td>
+      <td>${getStatusBadge(result.status)}</td>
+      <td>${issuesHtml} ${actionHtml}</td>
+    `;
+    
+    tbody.appendChild(tr);
+  }
+
+  function shouldShowRow(status, issues) {
+    if (currentFilter === 'all') return true;
+    if (currentFilter === 'Missing') return status === 'Missing' || status === 'Error';
+    if (currentFilter === 'Meta') return status === 'Matched' && issues.length > 0;
+    return true;
+  }
+
+  function finishAnalysis() {
+    if (eventSource) eventSource.close();
+    setStatus('idle', 'Completed', 'Analysis finished');
+    progressContainer.classList.add('d-none');
+    exportBtn.disabled = false;
+  }
+
+  function updateCounters() {
+    document.getElementById('summaryTotalOld').innerText = countTotal;
+    document.getElementById('summaryMissing').innerText = countMissing;
+    document.getElementById('summaryMeta').innerText = countMeta;
+    resultsCount.textContent = `${countTotal} page${countTotal !== 1 ? 's' : ''}`;
+  }
+
+  function getStatusBadge(status) {
+    if (status === 'New') {
+      return '<span class="badge-matched"><i class="bi bi-plus-circle"></i> New</span>';
+    }
+    const badges = {
+      'Matched': '<span class="badge-matched"><i class="bi bi-check-circle"></i> Matched</span>',
+      'Missing': '<span class="badge-missing"><i class="bi bi-x-circle"></i> Missing</span>',
+      'Error': '<span class="badge-missing"><i class="bi bi-exclamation-triangle"></i> Error</span>'
+    };
+    return badges[status] || status;
+  }
+
+  // Filter buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      applyFilter();
+    });
+  });
+
+  function applyFilter() {
+    const rows = tbody.querySelectorAll('tr');
+    rows.forEach(row => {
+      const status = row.getAttribute('data-status');
+      const hasMeta = row.getAttribute('data-has-meta') === 'true';
+      
+      let shouldShow = false;
+      if (currentFilter === 'all') shouldShow = true;
+      else if (currentFilter === 'Missing') shouldShow = status === 'Missing' || status === 'Error';
+      else if (currentFilter === 'Meta') shouldShow = hasMeta;
+      
+      row.style.display = shouldShow ? '' : 'none';
+    });
+  }
+
+  // View details button click
+  tbody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-view-details');
+    if (btn) {
+      const rowId = btn.dataset.rowId;
+      openMetaModal(rowId);
+    }
+  });
+
+  window.openMetaModal = function(rowId) {
+    const data = rowDataStore.get(rowId);
+    if (!data) return;
+    
+    const oldD = data.oldData || {};
+    const newD = data.newData || {};
+    const issues = data.issues || [];
+    
+    const renderRow = (label, key) => {
+      const hasIssue = issues.some(i => i.toLowerCase().includes(key.toLowerCase()));
+      const rowClass = hasIssue ? 'table-danger' : '';
+      return `
+        <tr class="${rowClass}">
+          <td class="fw-bold text-muted">${label}</td>
+          <td>${oldD[key] || '<em class="text-muted">Empty</em>'}</td>
+          <td>${newD[key] || '<em class="text-muted">Empty</em>'}</td>
+        </tr>
+      `;
+    };
+
+    const tableHtml = `
+      <table class="table table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 20%">Meta Detail</th>
+            <th style="width: 40%">Old Site</th>
+            <th style="width: 40%">New Site</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${renderRow('Title', 'title')}
+          ${renderRow('Description', 'description')}
+          ${renderRow('Keywords', 'keywords')}
+          ${renderRow('OG Title', 'ogTitle')}
+          ${renderRow('OG Description', 'ogDescription')}
+          ${renderRow('H1', 'h1')}
+          ${renderRow('Canonical', 'canonical')}
+          ${renderRow('Robots', 'robots')}
+        </tbody>
+      </table>
+    `;
+    
+    document.querySelector('#metaModal .modal-body').innerHTML = tableHtml;
+    new bootstrap.Modal(document.getElementById('metaModal')).show();
+  };
+
+  // Export
+  exportBtn.addEventListener('click', async () => {
+    exportBtn.disabled = true;
+    try {
+      const response = await axios.get(`/projects/${projectId}/export?filter=${currentFilter}`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `crawlwise_report_${projectId}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      exportBtn.disabled = false;
+    }
+  });
+
+  // Reset
+  document.getElementById('btn-new-audit').addEventListener('click', () => {
+    if (eventSource) eventSource.close();
+    analysisArea.classList.add('d-none');
+    setupCard.style.display = 'block';
+    tbody.innerHTML = '';
+    rowDataStore.clear();
+    countTotal = 0; countMissing = 0; countMeta = 0;
+    updateCounters();
+    startBtn.disabled = false;
+    startBtn.querySelector('.spinner').classList.add('d-none');
+    startBtn.querySelector('.play-icon').classList.remove('d-none');
+    createProjectForm.reset();
+  });
+</script>
+
+<%- include('partials/footer') %>

@@ -26,7 +26,10 @@
     "@nestjs/throttler": "^6.5.0",
     "@prisma/adapter-pg": "^7.4.0",
     "@prisma/client": "^7.4.0",
+    "@types/archiver": "^7.0.0",
     "@types/sanitize-html": "^2.16.0",
+    "@types/uuid": "^10.0.0",
+    "archiver": "^7.0.1",
     "axios": "^1.13.5",
     "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
@@ -39,6 +42,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sanitize-html": "^2.17.0",
+    "uuid": "^13.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -1,0 +1,279 @@
+<%
+const page = 'scraper';
+%>
+<%- include('partials/header') %>
+
+<link rel="stylesheet" href="/stylesheets/scraper.css">
+
+<div id="notificationContainer"></div>
+
+<div class="scraper-container">
+  <div class="scraper-header">
+    <h1 class="scraper-title">Website Scraper</h1>
+    <p class="scraper-subtitle">Extract data from any website with ease</p>
+  </div>
+
+  <div class="scraper-card" id="setupCard">
+    <form id="scrapeForm" class="scrape-form">
+      <div class="form-section">
+        <div class="scope-selector">
+          <label class="section-label">Crawl Type</label>
+          <div class="scope-options">
+            <label class="scope-option scope-option--active" data-scope="entire">
+              <input type="radio" name="crawlScope" value="entire" checked>
+              <span class="scope-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </span>
+              <span class="scope-text">
+                <strong>Entire Website</strong>
+                <small>Crawl all pages via sitemap</small>
+              </span>
+            </label>
+            <label class="scope-option" data-scope="single">
+              <input type="radio" name="crawlScope" value="single">
+              <span class="scope-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </span>
+              <span class="scope-text">
+                <strong>Single Page</strong>
+                <small>Scrape one page only</small>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section url-section">
+        <div id="sitemapUrlGroup" class="url-input-group">
+          <label class="input-label" for="sitemapUrl">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Sitemap URL
+          </label>
+          <div class="input-wrapper">
+            <input type="url" id="sitemapUrl" class="url-input" placeholder="https://example.com/sitemap.xml" autocomplete="off">
+          </div>
+          <span class="input-hint">Enter the XML sitemap URL to crawl entire website</span>
+        </div>
+
+        <div id="websiteUrlGroup" class="url-input-group d-none">
+          <label class="input-label" for="websiteUrl">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            Page URL
+          </label>
+          <div class="input-wrapper">
+            <input type="url" id="websiteUrl" class="url-input" placeholder="https://example.com/page" autocomplete="off">
+          </div>
+          <span class="input-hint">Enter the full URL of the page you want to scrape</span>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label class="section-label">Content Type</label>
+        <div class="content-type-selector">
+          <select class="content-type-select" id="contentType" name="contentType">
+            <option value="all" selected>All Content</option>
+            <option value="meta">Meta Tags</option>
+            <option value="images">Images</option>
+            <option value="videos">Videos</option>
+            <option value="documents">Documents</option>
+            <option value="content">Content</option>
+            <option value="links">Links</option>
+            <option value="social">Social Media</option>
+            <option value="contact">Contact</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-scrape" id="scrapeButton">
+          <span class="btn-icon">
+            <svg class="spinner d-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
+            <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </span>
+          <span class="btn-text">Start Crawling</span>
+        </button>
+        <button type="button" class="btn-download d-none" id="downloadButton" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </button>
+      </div>
+    </form>
+
+    <div class="streaming-status" id="streamingStatus">
+      <div class="status-indicator"></div>
+      <div class="status-content">
+        <span class="status-text">Ready</span>
+        <span class="status-detail" id="statusDetail"></span>
+      </div>
+      <div class="progress-container d-none" id="progressContainer">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section d-none" id="resultCard">
+    <div class="results-header">
+      <div class="results-header-left">
+        <h2 class="results-title">Scraped Data</h2>
+        <span class="results-count" id="resultsCount"></span>
+      </div>
+      <div class="results-header-right">
+        <button type="button" class="btn-download-option d-none" id="btnDownloadMedia">
+          <i class="bi bi-download"></i>
+          Download Media
+        </button>
+        <button type="button" class="btn-download-option" id="btnExportExcel">
+          <i class="bi bi-file-earmark-excel"></i>
+          Export Excel
+        </button>
+        <button type="button" class="btn-reset" id="btnNewScrape">
+          <i class="bi bi-plus-circle"></i>
+          Start New Scrape
+        </button>
+      </div>
+    </div>
+
+    <div class="streaming-status" id="streamingStatusResults">
+      <div class="status-indicator"></div>
+      <div class="status-content">
+        <span class="status-text">Ready</span>
+        <span class="status-detail" id="statusDetailResults"></span>
+      </div>
+      <div class="progress-container d-none" id="progressContainerResults">
+        <div class="progress-bar" id="progressBarResults"></div>
+      </div>
+    </div>
+
+    <div class="results-stats" id="resultsStats"></div>
+    <div class="results-content" id="scrapedDataAccordion"></div>
+  </div>
+
+  <div class="error-section d-none" id="errorAlert"></div>
+</div>
+
+<div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center p-0">
+        <img src="" class="img-fluid" id="modalImage">
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-outline-primary" id="prevImage">Previous</button>
+        <button type="button" class="btn btn-outline-primary" id="nextImage">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="videoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0" style="background: var(--cb-bg); min-height: 400px;">
+        <div id="videoContainer"></div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-outline-light" id="prevVideo">Previous</button>
+        <button type="button" class="btn btn-outline-light" id="nextVideo">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Warning Modal -->
+<div id="leaveWarningModal" class="leave-warning-modal d-none">
+  <div class="leave-warning-overlay"></div>
+  <div class="leave-warning-dialog">
+    <div class="leave-warning-icon">
+      <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+    </div>
+    <h5 class="leave-warning-title">Scraping In Progress</h5>
+    <p class="leave-warning-text">There is an ongoing scraping operation. If you leave this page, the operation will be cancelled and progress will be lost.</p>
+    <div class="leave-warning-buttons">
+      <button type="button" class="btn btn-secondary" id="btnStayOnPage">Stay on Page</button>
+      <button type="button" class="btn btn-danger" id="btnLeavePage">Leave Anyway</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .leave-warning-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .leave-warning-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  
+  .leave-warning-dialog {
+    position: relative;
+    background: var(--cb-bg);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    max-width: 400px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  }
+  
+  .leave-warning-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--cb-warning-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+  }
+  
+  .leave-warning-icon i {
+    font-size: 2rem;
+  }
+  
+  .leave-warning-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--cb-gray-800);
+  }
+  
+  .leave-warning-text {
+    color: var(--cb-gray-600);
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .leave-warning-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+  
+  .leave-warning-buttons .btn {
+    padding: 0.5rem 1.25rem;
+    font-weight: 500;
+  }
+</style>
+
+<script src="/javascripts/notification.js"></script>
+<script src="/javascripts/download.js"></script>
+<script src="/javascripts/scraper.js"></script>
+
+<%- include('partials/footer') %>

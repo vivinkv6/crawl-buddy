@@ -31,6 +31,10 @@ async function bootstrap() {
       transform: true, // Auto transform payloads to DTO instances
   }));
 
+  // Increase body-parser limits for large download payloads
+  app.useBodyParser('json', { limit: '500mb' });
+  app.useBodyParser('urlencoded', { limit: '500mb', extended: true });
+
   app.useStaticAssets(join(__dirname, '..', 'public'));
   app.setBaseViewsDir(join(__dirname, '..', 'views'));
   app.setViewEngine('ejs');

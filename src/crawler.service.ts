@@ -118,7 +118,7 @@ export class CrawlerService {
           const response = await axios.get(sitemapUrl, {
               timeout: 30000, 
               headers: { 
-                  'User-Agent': 'Mozilla/5.0 (compatible; CrawlBuddy/1.0)'
+                  'User-Agent': 'Mozilla/5.0 (compatible; CrawlWise/1.0)'
               }
           });
 
