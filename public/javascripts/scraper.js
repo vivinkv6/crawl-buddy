@@ -857,7 +857,8 @@ document.addEventListener('DOMContentLoaded', () => {
     pageBody.className = 'accordion-body p-0';
     
     const urlDiv = document.createElement('div');
-    urlDiv.className = 'px-3 py-2 bg-light border-bottom';
+    urlDiv.className = 'px-3 py-2 border-bottom';
+    urlDiv.style.backgroundColor = 'var(--cb-bg-secondary)';
     urlDiv.innerHTML = `<small class="text-muted font-monospace">${pageUrl}</small>`;
     
     const contentAccordion = createPageAccordion(pageData, index);

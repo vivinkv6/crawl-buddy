@@ -828,7 +828,7 @@ body {
 .accordion-body {
   padding: 1.25rem;
   background: var(--cb-bg);
-  color: var(--cb-gray-700);
+  color: var(--cb-text);
 }
 
 .accordion-collapse {
