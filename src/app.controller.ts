@@ -13,4 +13,13 @@ export class AppController {
   migration() {
     return {};
   }
+
+  @Get('api/health')
+  healthCheck() {
+    return {
+      status: 'ok',
+      message: 'Server Health OK',
+      timestamp: new Date().toISOString(),
+    };
+  }
 }
