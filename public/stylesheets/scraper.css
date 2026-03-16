@@ -306,12 +306,14 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.3);
+  text-decoration: none;
 }
 
 .btn-download:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px 0 rgba(16, 185, 129, 0.2);
   background: linear-gradient(135deg, var(--cb-success-dark) 0%, var(--cb-success) 100%);
+  text-decoration: none;
 }
 
 .btn-download:disabled {
@@ -339,9 +341,14 @@ body {
 }
 
 .status-indicator.active {
+  background: var(--cb-warning);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2);
+  animation: pulse 2s infinite;
+}
+
+.status-indicator.completed {
   background: var(--cb-success);
   box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
-  animation: pulse 2s infinite;
 }
 
 .status-indicator.error {
@@ -409,12 +416,14 @@ body {
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  text-decoration: none;
 }
 
 .btn-reset:hover {
   background: var(--cb-gray-200);
   color: var(--cb-gray-800);
   border-color: var(--cb-gray-300);
+  text-decoration: none;
 }
 
 .btn-download-option {
@@ -430,6 +439,7 @@ body {
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  text-decoration: none;
 }
 
 .btn-download-option:hover {
@@ -437,6 +447,7 @@ body {
   color: white;
   transform: translateY(-1px);
   box-shadow: var(--cb-shadow-md);
+  text-decoration: none;
 }
 
 .btn-download-option.btn-media {

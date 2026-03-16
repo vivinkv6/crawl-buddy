@@ -6,7 +6,17 @@ export class ScrapeDto {
   url: string;
 
   @IsOptional()
-  @IsIn(['all', 'meta', 'images', 'videos', 'documents', 'content', 'links', 'social', 'contact'])
+  @IsIn([
+    'all',
+    'meta',
+    'images',
+    'videos',
+    'documents',
+    'content',
+    'links',
+    'social',
+    'contact',
+  ])
   contentType?: string = 'all';
 
   @IsOptional()

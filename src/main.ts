@@ -8,29 +8,40 @@ import { ValidationPipe } from '@nestjs/common';
 import { ThrottlerExceptionFilter } from './filters/throttler-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(
-    AppModule,
-  );
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Security Headers
-  app.use(helmet({
+  app.use(
+    helmet({
       contentSecurityPolicy: {
-          directives: {
-              defaultSrc: ["'self'"],
-              scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"], // Allow Bootstrap & Axios
-              styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com"],
-              fontSrc: ["'self'", "https://cdn.jsdelivr.net", "https://fonts.gstatic.com"],
-              imgSrc: ["'self'", "data:", "https:"],
-          },
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'], // Allow Bootstrap & Axios
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdn.jsdelivr.net',
+            'https://fonts.googleapis.com',
+          ],
+          fontSrc: [
+            "'self'",
+            'https://cdn.jsdelivr.net',
+            'https://fonts.gstatic.com',
+          ],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
       },
-  }));
+    }),
+  );
 
   // Global Validation Pipe
-  app.useGlobalPipes(new ValidationPipe({
+  app.useGlobalPipes(
+    new ValidationPipe({
       whitelist: true, // Strip properties not in DTO
       forbidNonWhitelisted: true, // Throw error if extra properties present
       transform: true, // Auto transform payloads to DTO instances
-  }));
+    }),
+  );
 
   // Apply throttler exception filter globally
   app.useGlobalFilters(new ThrottlerExceptionFilter());

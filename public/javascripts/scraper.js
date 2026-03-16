@@ -125,9 +125,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const setStatus = (state, text, detail = '') => {
+    // Show/hide streaming status based on state
+    if (streamingStatus) {
+      if (state === 'idle') {
+        streamingStatus.classList.add('d-none');
+      } else {
+        streamingStatus.classList.remove('d-none');
+      }
+    }
+    
     statusIndicator.className = 'status-indicator';
     if (state === 'active') {
       statusIndicator.classList.add('active');
+      statusText.textContent = text;
+    } else if (state === 'completed') {
+      statusIndicator.classList.add('completed');
       statusText.textContent = text;
     } else if (state === 'error') {
       statusIndicator.classList.add('error');
@@ -145,6 +157,9 @@ document.addEventListener('DOMContentLoaded', () => {
       resultsStatusIndicator.className = 'status-indicator';
       if (state === 'active') {
         resultsStatusIndicator.classList.add('active');
+        resultsStatusText.textContent = text;
+      } else if (state === 'completed') {
+        resultsStatusIndicator.classList.add('completed');
         resultsStatusText.textContent = text;
       } else if (state === 'error') {
         resultsStatusIndicator.classList.add('error');
@@ -944,7 +959,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const handleDownload = async () => {
+    const originalContent = downloadButton.innerHTML;
     downloadButton.disabled = true;
+    downloadButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spinner-border spinner-border-sm"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 1 10 10"></path></svg> Downloading...';
+    
     try {
       await downloadScrapedData(window.scrapedData, contentTypeSelect.value);
     } catch (error) {
@@ -952,6 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showError('Failed to process data. Please try again.');
     } finally {
       downloadButton.disabled = false;
+      downloadButton.innerHTML = originalContent;
     }
   };
 
@@ -1171,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const msg = JSON.parse(event.data);
       
       if (msg.type === 'start') {
-        setStatus('active', 'Scraping...', `Found ${msg.totalPages} pages`);
+        setStatus('active', 'Processing', `Found ${msg.totalPages} pages`);
         progressContainer.classList.remove('d-none');
       } else if (msg.type === 'result') {
         const pageData = msg.page;
@@ -1179,7 +1198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const percent = Math.round((msg.current / msg.total) * 100);
         setProgress(percent);
-        setStatus('active', 'Scraping...', `Scraped ${msg.current} of ${msg.total} pages`);
+        setStatus('active', 'Processing', `Scraped ${msg.current} of ${msg.total} pages`);
         
         const stats = calculateStats(scrapedPages);
         renderStats(stats);
@@ -1195,7 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isScraping = false;
         isScrapeComplete = true;
         hideLoading();
-        setStatus('idle', 'Completed', `Scraped ${msg.totalPages} pages${msg.failed ? `, ${msg.failed} failed` : ''}`);
+        setStatus('completed', 'Completed', `Scraped ${msg.totalPages} pages${msg.failed ? `, ${msg.failed} failed` : ''}`);
         progressContainer.classList.add('d-none');
         
         // Hide results progress

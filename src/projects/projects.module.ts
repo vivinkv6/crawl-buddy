@@ -5,11 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { CrawlerService } from '../crawler.service';
 
 @Module({
-  providers: [
-    ProjectsService, 
-    PrismaService, 
-    CrawlerService
-  ],
-  controllers: [ProjectsController]
+  providers: [ProjectsService, PrismaService, CrawlerService],
+  controllers: [ProjectsController],
 })
 export class ProjectsModule {}

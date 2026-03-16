@@ -99,10 +99,10 @@ const page = 'scraper';
       </div>
     </form>
 
-    <div class="streaming-status" id="streamingStatus">
+    <div class="streaming-status d-none" id="streamingStatus">
       <div class="status-indicator"></div>
       <div class="status-content">
-        <span class="status-text">Ready</span>
+        <span class="status-text"></span>
         <span class="status-detail" id="statusDetail"></span>
       </div>
       <div class="progress-container d-none" id="progressContainer">
@@ -118,18 +118,18 @@ const page = 'scraper';
         <span class="results-count" id="resultsCount"></span>
       </div>
       <div class="results-header-right">
-        <button type="button" class="btn-download-option d-none" id="btnDownloadMedia">
+        <a href="javascript:void(0)" class="btn-download-option d-none" id="btnDownloadMedia">
           <i class="bi bi-download"></i>
           Download Media
-        </button>
-        <button type="button" class="btn-download-option" id="btnExportExcel">
+        </a>
+        <a href="javascript:void(0)" class="btn-download-option" id="btnExportExcel">
           <i class="bi bi-file-earmark-excel"></i>
           Export Excel
-        </button>
-        <button type="button" class="btn-reset" id="btnNewScrape">
+        </a>
+        <a href="/scraper" class="btn-reset" id="btnNewScrape">
           <i class="bi bi-plus-circle"></i>
           Start New Scrape
-        </button>
+        </a>
       </div>
     </div>
 

@@ -27,267 +27,298 @@ export class CrawlerService {
     return hostname.replace(/^www\./, '');
   }
 
-  async crawlSite(startUrl: string, maxPages: number = 10000, onPageFound?: (page: PageData) => void | Promise<void>, cancellationToken?: () => boolean, concurrency: number = 5): Promise<void> {
+  async crawlSite(
+    startUrl: string,
+    maxPages: number = 10000,
+    onPageFound?: (page: PageData) => void | Promise<void>,
+    cancellationToken?: () => boolean,
+    concurrency: number = 5,
+  ): Promise<void> {
     const visited = new Set<string>();
     const queue: string[] = [this.normalizeUrl(startUrl)];
-    
+
     const startUrlObj = new URL(startUrl);
     const domain = this.getBaseDomain(startUrlObj.hostname);
-    
+
     const queued = new Set<string>([this.normalizeUrl(startUrl)]);
 
     // Parallel Processing Queue
     const activePromises = new Set<Promise<void>>();
 
-    while ((queue.length > 0 || activePromises.size > 0) && visited.size < maxPages) {
+    while (
+      (queue.length > 0 || activePromises.size > 0) &&
+      visited.size < maxPages
+    ) {
       if (cancellationToken && cancellationToken()) {
-          this.logger.warn(`Crawl cancelled for ${domain}. Stopping...`);
-          break;
+        this.logger.warn(`Crawl cancelled for ${domain}. Stopping...`);
+        break;
       }
 
       // Fill up the active slots
-      while (queue.length > 0 && activePromises.size < concurrency && visited.size < maxPages) {
-          const currentUrl = queue.shift();
-          if (!currentUrl) continue;
+      while (
+        queue.length > 0 &&
+        activePromises.size < concurrency &&
+        visited.size < maxPages
+      ) {
+        const currentUrl = queue.shift();
+        if (!currentUrl) continue;
 
-          visited.add(currentUrl);
-          
-          // Simple log throttling
-          if (visited.size % 50 === 0) {
-              this.logger.log(`Crawling ${domain}: ${visited.size}/${maxPages} pages found. Queue size: ${queue.length}. Active: ${activePromises.size}`);
-          }
+        visited.add(currentUrl);
 
-          // Create promise for this task
-          const taskPromise = (async () => {
+        // Simple log throttling
+        if (visited.size % 50 === 0) {
+          this.logger.log(
+            `Crawling ${domain}: ${visited.size}/${maxPages} pages found. Queue size: ${queue.length}. Active: ${activePromises.size}`,
+          );
+        }
+
+        // Create promise for this task
+        const taskPromise = (async () => {
+          try {
+            const pageData = await this.fetchPage(currentUrl);
+
+            if (cancellationToken && cancellationToken()) return;
+
+            // Notify callback
+            if (onPageFound) {
+              await onPageFound(pageData);
+            }
+
+            // Queue links
+            for (const link of pageData.links) {
               try {
-                  const pageData = await this.fetchPage(currentUrl);
-                  
-                  if (cancellationToken && cancellationToken()) return;
-
-                  // Notify callback
-                  if (onPageFound) {
-                      await onPageFound(pageData);
+                const linkUrlObj = new URL(link);
+                if (
+                  this.getBaseDomain(linkUrlObj.hostname) === domain &&
+                  ['http:', 'https:'].includes(linkUrlObj.protocol)
+                ) {
+                  if (!visited.has(link) && !queued.has(link)) {
+                    queue.push(link);
+                    queued.add(link);
                   }
-
-                  // Queue links
-                  for (const link of pageData.links) {
-                      try {
-                          const linkUrlObj = new URL(link);
-                          if (this.getBaseDomain(linkUrlObj.hostname) === domain && ['http:', 'https:'].includes(linkUrlObj.protocol)) {
-                              if (!visited.has(link) && !queued.has(link)) {
-                                  queue.push(link);
-                                  queued.add(link);
-                              }
-                          }
-                      } catch (e) {
-                          // Ignore invalid URLs
-                      }
-                  }
-              } catch (error) {
-                  this.logger.error(`Error processing ${currentUrl}: ${error.message}`);
+                }
+              } catch (e) {
+                // Ignore invalid URLs
               }
-          })();
+            }
+          } catch (error) {
+            this.logger.error(
+              `Error processing ${currentUrl}: ${error.message}`,
+            );
+          }
+        })();
 
-          // Add to active set
-          activePromises.add(taskPromise);
-          
-          // Remove from active set when done
-          taskPromise.finally(() => {
-              activePromises.delete(taskPromise);
-          });
+        // Add to active set
+        activePromises.add(taskPromise);
+
+        // Remove from active set when done
+        taskPromise.finally(() => {
+          activePromises.delete(taskPromise);
+        });
       }
 
       // Wait for at least one promise to resolve if queue is empty or slots full
       if (activePromises.size > 0) {
-          await Promise.race(activePromises);
+        await Promise.race(activePromises);
       } else if (queue.length === 0 && activePromises.size === 0) {
-          break; // Done
+        break; // Done
       }
     }
-    
-    this.logger.log(`Crawl finished for ${domain}. Total pages processed: ${visited.size}`);
+
+    this.logger.log(
+      `Crawl finished for ${domain}. Total pages processed: ${visited.size}`,
+    );
   }
 
   // New method to fetch URLs from Sitemap
   // MODIFIED: Returns a structure { urls: string[], nestedSitemaps: string[] }
   // This allows the caller (ProjectsService) to orchestrate the "One by One" processing
-  async fetchSitemapContent(sitemapUrl: string): Promise<{ urls: string[], nestedSitemaps: string[] }> {
-      try {
-          this.logger.log(`[Sitemap] Fetching: ${sitemapUrl}`);
-          
-          const response = await axios.get(sitemapUrl, {
-              timeout: 30000, 
-              headers: { 
-                  'User-Agent': 'Mozilla/5.0 (compatible; CrawlWise/1.0)'
-              }
-          });
+  async fetchSitemapContent(
+    sitemapUrl: string,
+  ): Promise<{ urls: string[]; nestedSitemaps: string[] }> {
+    try {
+      this.logger.log(`[Sitemap] Fetching: ${sitemapUrl}`);
 
-          const $ = cheerio.load(response.data, { xmlMode: true });
-          const urls: string[] = [];
-          const nestedSitemaps: string[] = [];
+      const response = await axios.get(sitemapUrl, {
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; CrawlWise/1.0)',
+        },
+      });
 
-          // 1. Check for Standard URLs
-          $('url > loc').each((_, el) => {
-              const url = $(el).text().trim();
-              if (url) urls.push(this.normalizeUrl(url));
-          });
+      const $ = cheerio.load(response.data, { xmlMode: true });
+      const urls: string[] = [];
+      const nestedSitemaps: string[] = [];
 
-          // 2. Check for Nested Sitemaps
-          $('sitemap > loc').each((_, el) => {
-              const url = $(el).text().trim();
-              if (url) nestedSitemaps.push(url);
-          });
+      // 1. Check for Standard URLs
+      $('url > loc').each((_, el) => {
+        const url = $(el).text().trim();
+        if (url) urls.push(this.normalizeUrl(url));
+      });
 
-          this.logger.log(`[Sitemap] ${sitemapUrl} -> Found ${urls.length} URLs, ${nestedSitemaps.length} Nested Sitemaps`);
-          
-          return { urls: [...new Set(urls)], nestedSitemaps };
-      } catch (error) {
-          this.logger.error(`[Sitemap] Failed to fetch ${sitemapUrl}: ${error.message}`);
-          return { urls: [], nestedSitemaps: [] };
-      }
+      // 2. Check for Nested Sitemaps
+      $('sitemap > loc').each((_, el) => {
+        const url = $(el).text().trim();
+        if (url) nestedSitemaps.push(url);
+      });
+
+      this.logger.log(
+        `[Sitemap] ${sitemapUrl} -> Found ${urls.length} URLs, ${nestedSitemaps.length} Nested Sitemaps`,
+      );
+
+      return { urls: [...new Set(urls)], nestedSitemaps };
+    } catch (error) {
+      this.logger.error(
+        `[Sitemap] Failed to fetch ${sitemapUrl}: ${error.message}`,
+      );
+      return { urls: [], nestedSitemaps: [] };
+    }
   }
 
   // OLD method kept for compatibility but we will shift logic to Service
   async fetchSitemapUrls(sitemapUrl: string): Promise<string[]> {
-      const { urls, nestedSitemaps } = await this.fetchSitemapContent(sitemapUrl);
-      // ... recursive logic here if needed, but we are moving it to ProjectsService for better control
-      // For now, let's just do a simple flat fetch here for fallback
-      const allUrls = [...urls];
-      for (const nested of nestedSitemaps) {
-          const child = await this.fetchSitemapContent(nested);
-          allUrls.push(...child.urls);
-      }
-      return [...new Set(allUrls)];
+    const { urls, nestedSitemaps } = await this.fetchSitemapContent(sitemapUrl);
+    // ... recursive logic here if needed, but we are moving it to ProjectsService for better control
+    // For now, let's just do a simple flat fetch here for fallback
+    const allUrls = [...urls];
+    for (const nested of nestedSitemaps) {
+      const child = await this.fetchSitemapContent(nested);
+      allUrls.push(...child.urls);
+    }
+    return [...new Set(allUrls)];
   }
 
   // Helper to fetch a single page without crawling (for direct checks)
   async fetchPage(url: string): Promise<PageData> {
-      try {
-        const response = await axios.get(url, {
-          validateStatus: () => true,
-          timeout: 10000,
-          headers: { 
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.5'
+    try {
+      const response = await axios.get(url, {
+        validateStatus: () => true,
+        timeout: 10000,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        },
+      });
+
+      // Use the final URL from axios (handles redirects)
+      const finalUrl = response.request?.res?.responseUrl || url;
+      const status = response.status;
+      let title = '';
+      let description = '';
+      let h1 = '';
+      let keywords = '';
+      const schemas: string[] = [];
+      let canonical = '';
+      let ogTitle = '';
+      let ogDescription = '';
+      let ogImage = '';
+      let robots = '';
+      const links: string[] = [];
+
+      if (response.headers['content-type']?.includes('text/html')) {
+        const $ = cheerio.load(response.data);
+        title = $('title').text().trim();
+        description =
+          $('meta[name="description"]').attr('content')?.trim() || '';
+        h1 = $('h1').first().text().trim();
+        keywords = $('meta[name="keywords"]').attr('content')?.trim() || '';
+        canonical = $('link[rel="canonical"]').attr('href')?.trim() || '';
+
+        ogTitle = $('meta[property="og:title"]').attr('content')?.trim() || '';
+        ogDescription =
+          $('meta[property="og:description"]').attr('content')?.trim() || '';
+        ogImage = $('meta[property="og:image"]').attr('content')?.trim() || '';
+
+        robots = $('meta[name="robots"]').attr('content')?.trim() || '';
+
+        // Schema Extraction
+        $('script[type="application/ld+json"]').each((_, element) => {
+          try {
+            const json = JSON.parse($(element).html() || '{}');
+            const extractTypes = (obj: any): string[] => {
+              if (!obj) return [];
+              if (Array.isArray(obj)) return obj.flatMap(extractTypes);
+
+              const types: string[] = [];
+              if (obj['@type']) {
+                if (Array.isArray(obj['@type'])) {
+                  types.push(...obj['@type']);
+                } else {
+                  types.push(obj['@type']);
+                }
+              }
+              if (obj['@graph'] && Array.isArray(obj['@graph'])) {
+                types.push(...extractTypes(obj['@graph']));
+              }
+              return types;
+            };
+            const found = extractTypes(json);
+            schemas.push(...found);
+          } catch (e) {
+            // Ignore parse errors
           }
         });
 
-        // Use the final URL from axios (handles redirects)
-        const finalUrl = response.request?.res?.responseUrl || url;
-        const status = response.status;
-        let title = '';
-        let description = '';
-        let h1 = '';
-        let keywords = '';
-        const schemas: string[] = [];
-        let canonical = '';
-        let ogTitle = '';
-        let ogDescription = '';
-        let ogImage = '';
-        let robots = '';
-        const links: string[] = [];
+        // Check for <base> tag
+        const baseHref = $('base').attr('href');
+        const baseUrl = baseHref ? new URL(baseHref, finalUrl).href : finalUrl;
 
-        if (response.headers['content-type']?.includes('text/html')) {
-          const $ = cheerio.load(response.data);
-          title = $('title').text().trim();
-          description = $('meta[name="description"]').attr('content')?.trim() || '';
-          h1 = $('h1').first().text().trim();
-          keywords = $('meta[name="keywords"]').attr('content')?.trim() || '';
-          canonical = $('link[rel="canonical"]').attr('href')?.trim() || '';
-          
-          ogTitle = $('meta[property="og:title"]').attr('content')?.trim() || '';
-          ogDescription = $('meta[property="og:description"]').attr('content')?.trim() || '';
-          ogImage = $('meta[property="og:image"]').attr('content')?.trim() || '';
-
-          robots = $('meta[name="robots"]').attr('content')?.trim() || '';
-          
-          // Schema Extraction
-          $('script[type="application/ld+json"]').each((_, element) => {
-             try {
-                 const json = JSON.parse($(element).html() || '{}');
-                 const extractTypes = (obj: any): string[] => {
-                     if (!obj) return [];
-                     if (Array.isArray(obj)) return obj.flatMap(extractTypes);
-                     
-                     const types: string[] = [];
-                     if (obj['@type']) {
-                         if (Array.isArray(obj['@type'])) {
-                             types.push(...obj['@type']);
-                         } else {
-                             types.push(obj['@type']);
-                         }
-                     }
-                     if (obj['@graph'] && Array.isArray(obj['@graph'])) {
-                         types.push(...extractTypes(obj['@graph']));
-                     }
-                     return types;
-                 };
-                 const found = extractTypes(json);
-                 schemas.push(...found);
-             } catch (e) {
-                 // Ignore parse errors
-             }
-          });
-          
-          // Check for <base> tag
-          const baseHref = $('base').attr('href');
-          const baseUrl = baseHref ? new URL(baseHref, finalUrl).href : finalUrl;
-
-          $('a').each((_, element) => {
-            const href = $(element).attr('href');
-            if (href) {
-              try {
-                // Resolve relative links against the FINAL URL (or base URL)
-                const absoluteUrl = new URL(href, baseUrl).href;
-                const normalizedUrl = this.normalizeUrl(absoluteUrl);
-                links.push(normalizedUrl);
-              } catch (e) {
-                // Invalid URL
-              }
+        $('a').each((_, element) => {
+          const href = $(element).attr('href');
+          if (href) {
+            try {
+              // Resolve relative links against the FINAL URL (or base URL)
+              const absoluteUrl = new URL(href, baseUrl).href;
+              const normalizedUrl = this.normalizeUrl(absoluteUrl);
+              links.push(normalizedUrl);
+            } catch (e) {
+              // Invalid URL
             }
-          });
-          
-          // this.logger.debug(`Fetched ${url} -> ${links.length} links found.`);
-        } else {
-            // this.logger.debug(`Fetched ${url} -> Not HTML (${response.headers['content-type']})`);
-        }
+          }
+        });
 
-        return {
-          url: this.normalizeUrl(url), // Return original requested URL as ID
-          status,
-          title,
-          description,
-          h1,
-          keywords,
-          schemas: [...new Set(schemas)], // Unique schemas
-          canonical,
-          ogTitle,
-          ogDescription,
-          ogImage,
-          robots,
-          links
-        };
-
-      } catch (error) {
-        this.logger.error(`Failed to fetch ${url}: ${error.message}`);
-        // Network error or timeout
-        return {
-          url: this.normalizeUrl(url),
-          status: 0,
-          title: '',
-          description: '',
-          h1: '',
-          keywords: '',
-          schemas: [],
-          canonical: '',
-          ogTitle: '',
-          ogDescription: '',
-          ogImage: '',
-          robots: '',
-          links: []
-        };
+        // this.logger.debug(`Fetched ${url} -> ${links.length} links found.`);
+      } else {
+        // this.logger.debug(`Fetched ${url} -> Not HTML (${response.headers['content-type']})`);
       }
+
+      return {
+        url: this.normalizeUrl(url), // Return original requested URL as ID
+        status,
+        title,
+        description,
+        h1,
+        keywords,
+        schemas: [...new Set(schemas)], // Unique schemas
+        canonical,
+        ogTitle,
+        ogDescription,
+        ogImage,
+        robots,
+        links,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to fetch ${url}: ${error.message}`);
+      // Network error or timeout
+      return {
+        url: this.normalizeUrl(url),
+        status: 0,
+        title: '',
+        description: '',
+        h1: '',
+        keywords: '',
+        schemas: [],
+        canonical: '',
+        ogTitle: '',
+        ogDescription: '',
+        ogImage: '',
+        robots: '',
+        links: [],
+      };
+    }
   }
 
   public normalizeUrl(url: string): string {

@@ -18,10 +18,10 @@ import Redis from 'ioredis';
         const client = new Redis(url, {
           // 🔥 IMPORTANT FIX (prevents MaxRetriesPerRequestError)
           maxRetriesPerRequest: null,
-          
+
           // Force TLS for Upstash/Production Redis
           tls: {},
-          
+
           // IPv4/IPv6 compatibility
           family: 0,
 

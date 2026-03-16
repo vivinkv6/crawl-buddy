@@ -39,10 +39,10 @@ const page = 'url-extractor';
       </div>
     </form>
 
-    <div class="streaming-status" id="streamingStatus">
+    <div class="streaming-status d-none" id="streamingStatus">
       <div class="status-indicator"></div>
       <div class="status-content">
-        <span class="status-text">Ready</span>
+        <span class="status-text"></span>
         <span class="status-detail" id="statusDetail"></span>
       </div>
       <div class="progress-container d-none" id="progressContainer">
@@ -59,14 +59,14 @@ const page = 'url-extractor';
       </div>
       <div class="results-header-right">
 
-        <button type="button" class="btn-download-option" id="btnExportExcel">
+        <a href="javascript:void(0)" class="btn-download-option" id="btnExportExcel">
           <i class="bi bi-file-earmark-excel"></i>
           Export Excel
-        </button>
-        <button type="button" class="btn-reset" id="btnNewExtract">
+        </a>
+        <a href="/scraper/url-extractor" class="btn-reset" id="btnNewExtract">
           <i class="bi bi-plus-circle"></i>
           New Extraction
-        </button>
+        </a>
       </div>
     </div>
 

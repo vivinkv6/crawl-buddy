@@ -13,43 +13,60 @@ export class ScraperService {
   // --- Extraction Helpers ---
 
   extractContactInfo($: cheerio.CheerioAPI) {
-    const contacts = { emails: [] as string[], phones: [] as string[], whatsapp: [] as string[] };
+    const contacts = {
+      emails: [] as string[],
+      phones: [] as string[],
+      whatsapp: [] as string[],
+    };
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
-    $('body').text().match(emailRegex)?.forEach(email => {
-      if (!contacts.emails.includes(email)) contacts.emails.push(email);
-    });
+    $('body')
+      .text()
+      .match(emailRegex)
+      ?.forEach((email) => {
+        if (!contacts.emails.includes(email)) contacts.emails.push(email);
+      });
     $('a[href^="mailto:"]').each((_, element) => {
       const href = $(element).attr('href');
       if (!href) return;
       const email = href.replace('mailto:', '').split('?')[0].trim();
-      if (email && email.match(emailRegex) && !contacts.emails.includes(email)) contacts.emails.push(email);
+      if (email && email.match(emailRegex) && !contacts.emails.includes(email))
+        contacts.emails.push(email);
     });
     $('meta[name*="email"], meta[property*="email"]').each((_, element) => {
       const content = $(element).attr('content');
-      if (content && content.match(emailRegex) && !contacts.emails.includes(content)) contacts.emails.push(content);
+      if (
+        content &&
+        content.match(emailRegex) &&
+        !contacts.emails.includes(content)
+      )
+        contacts.emails.push(content);
     });
 
-    const phoneRegex = /(?:\+?\d{1,3}[-. ]?)?(?:\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}|\d{10,12})(?:\s*(?:x|ext)\.?\s*\d{1,5})?/gi;
+    const phoneRegex =
+      /(?:\+?\d{1,3}[-. ]?)?(?:\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}|\d{10,12})(?:\s*(?:x|ext)\.?\s*\d{1,5})?/gi;
     const phoneMatches: string[] = $('body').text().match(phoneRegex) || [];
-    phoneMatches.forEach(phone => {
+    phoneMatches.forEach((phone) => {
       const digits = phone.replace(/\D/g, '');
       if (digits.length >= 10 && digits.length <= 15) {
-        const isLikelyPhoneNumber = (
-          /^\+?\d{1,3}?[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(phone.trim()) ||
+        const isLikelyPhoneNumber =
+          /^\+?\d{1,3}?[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(
+            phone.trim(),
+          ) ||
           /^\+\d{10,14}$/.test(phone.trim()) ||
-          /^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(phone.trim())
-        );
+          /^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(phone.trim());
         if (isLikelyPhoneNumber) {
           const formattedPhone = phone.trim();
-          if (!contacts.phones.includes(formattedPhone)) contacts.phones.push(formattedPhone);
+          if (!contacts.phones.includes(formattedPhone))
+            contacts.phones.push(formattedPhone);
         }
       }
     });
 
     $('a[href*="wa.me"], a[href*="whatsapp.com"]').each((_, element) => {
       const whatsappLink = $(element).attr('href');
-      if (whatsappLink && !contacts.whatsapp.includes(whatsappLink)) contacts.whatsapp.push(whatsappLink);
+      if (whatsappLink && !contacts.whatsapp.includes(whatsappLink))
+        contacts.whatsapp.push(whatsappLink);
     });
 
     return contacts;
@@ -62,7 +79,10 @@ export class ScraperService {
     let contentContainer: cheerio.Cheerio<any> | null = null;
 
     for (const selector of mainSelectors) {
-      if ($(selector).length > 0) { contentContainer = $(selector); break; }
+      if ($(selector).length > 0) {
+        contentContainer = $(selector);
+        break;
+      }
     }
     if (!contentContainer) {
       contentContainer = $('body').clone();
@@ -74,7 +94,11 @@ export class ScraperService {
       const tagName = (el.prop('tagName') || '').toLowerCase();
 
       if (/^h[1-6]$/.test(tagName)) {
-        content.push({ type: 'heading', level: parseInt(tagName.slice(1)), text: el.text().trim() });
+        content.push({
+          type: 'heading',
+          level: parseInt(tagName.slice(1)),
+          text: el.text().trim(),
+        });
       } else if (tagName === 'p') {
         const text = el.text().trim();
         if (text) content.push({ type: 'paragraph', text });
@@ -82,15 +106,24 @@ export class ScraperService {
         const items: any[] = [];
         el.find('li').each((_, li) => {
           const $li = $(li);
-          const item: any = { text: $li.clone().children('ul, ol').remove().end().text().trim() };
+          const item: any = {
+            text: $li.clone().children('ul, ol').remove().end().text().trim(),
+          };
           const nestedList = $li.children('ul, ol');
           if (nestedList.length > 0) {
             item.items = [];
-            nestedList.find('> li').each((_, nestedLi) => { item.items.push($(nestedLi).text().trim()); });
+            nestedList.find('> li').each((_, nestedLi) => {
+              item.items.push($(nestedLi).text().trim());
+            });
           }
           items.push(item);
         });
-        if (items.length > 0) content.push({ type: 'list', listType: tagName === 'ol' ? 'ordered' : 'unordered', items });
+        if (items.length > 0)
+          content.push({
+            type: 'list',
+            listType: tagName === 'ol' ? 'ordered' : 'unordered',
+            items,
+          });
       } else {
         const text = el.text().trim();
         if (text && !['script', 'style', 'noscript'].includes(tagName)) {
@@ -132,7 +165,8 @@ export class ScraperService {
       let url = src;
       if (url.startsWith('//')) url = 'https:' + url;
       else if (url.startsWith('/')) url = new URL(url, baseUrl).href;
-      else if (!url.startsWith('http') && !url.startsWith('//')) url = new URL(url, baseUrl).href;
+      else if (!url.startsWith('http') && !url.startsWith('//'))
+        url = new URL(url, baseUrl).href;
       if (!processedUrls.has(url)) {
         processedUrls.add(url);
         videos.push(url);
@@ -142,10 +176,12 @@ export class ScraperService {
     $('video').each((_, el) => {
       const src = $(el).attr('src') || $(el).attr('data-src');
       addVideo(src);
-      $(el).find('source').each((_, source) => {
-        const sourceSrc = $(source).attr('src');
-        addVideo(sourceSrc);
-      });
+      $(el)
+        .find('source')
+        .each((_, source) => {
+          const sourceSrc = $(source).attr('src');
+          addVideo(sourceSrc);
+        });
     });
 
     $('iframe[src]').each((_, el) => {
@@ -155,14 +191,19 @@ export class ScraperService {
 
     $('a[href]').each((_, el) => {
       const href = $(el).attr('href');
-      if (href && /\.(mp4|webm|ogg|avi|mov|mkv|wmv|flv|swf)(?:[?#]|$)/i.test(href)) {
+      if (
+        href &&
+        /\.(mp4|webm|ogg|avi|mov|mkv|wmv|flv|swf)(?:[?#]|$)/i.test(href)
+      ) {
         addVideo(href);
       }
     });
 
     $('[style*="background"]').each((_, el) => {
       const style = $(el).attr('style') || '';
-      const match = style.match(/url\(['"]?([^'")\s]+(?:mp4|webm|ogg|avi|mov|mkv)[^'")\s]*)/i);
+      const match = style.match(
+        /url\(['"]?([^'")\s]+(?:mp4|webm|ogg|avi|mov|mkv)[^'")\s]*)/i,
+      );
       if (match) addVideo(match[1]);
     });
 
@@ -171,7 +212,9 @@ export class ScraperService {
 
   extractDocuments($: cheerio.CheerioAPI) {
     const documents: string[] = [];
-    $('a[href$=".pdf"], a[href$=".doc"], a[href$=".docx"], a[href$=".xls"], a[href$=".xlsx"], a[href$=".ppt"], a[href$=".pptx"]').each((_, element) => {
+    $(
+      'a[href$=".pdf"], a[href$=".doc"], a[href$=".docx"], a[href$=".xls"], a[href$=".xlsx"], a[href$=".ppt"], a[href$=".pptx"]',
+    ).each((_, element) => {
       const href = $(element).attr('href');
       if (href && !documents.includes(href)) documents.push(href);
     });
@@ -181,19 +224,19 @@ export class ScraperService {
   extractSocialMedia($: cheerio.CheerioAPI) {
     const socialMedia: string[] = [];
     const socialPlatforms: Record<string, string[]> = {
-      'facebook': ['facebook.com', 'fb.com', 'fb.me'],
-      'twitter': ['twitter.com', 'x.com'],
-      'instagram': ['instagram.com', 'instagr.am'],
-      'linkedin': ['linkedin.com', 'lnkd.in'],
-      'youtube': ['youtube.com', 'youtu.be'],
-      'pinterest': ['pinterest.com', 'pin.it'],
-      'tiktok': ['tiktok.com', 'vm.tiktok.com'],
-      'snapchat': ['snapchat.com'],
-      'reddit': ['reddit.com'],
-      'medium': ['medium.com'],
-      'github': ['github.com'],
-      'telegram': ['t.me', 'telegram.me'],
-      'whatsapp': ['wa.me', 'whatsapp.com'],
+      facebook: ['facebook.com', 'fb.com', 'fb.me'],
+      twitter: ['twitter.com', 'x.com'],
+      instagram: ['instagram.com', 'instagr.am'],
+      linkedin: ['linkedin.com', 'lnkd.in'],
+      youtube: ['youtube.com', 'youtu.be'],
+      pinterest: ['pinterest.com', 'pin.it'],
+      tiktok: ['tiktok.com', 'vm.tiktok.com'],
+      snapchat: ['snapchat.com'],
+      reddit: ['reddit.com'],
+      medium: ['medium.com'],
+      github: ['github.com'],
+      telegram: ['t.me', 'telegram.me'],
+      whatsapp: ['wa.me', 'whatsapp.com'],
     };
 
     $('a').each((_, element) => {
@@ -201,10 +244,11 @@ export class ScraperService {
       if (href) {
         try {
           let normalizedUrl = href.toLowerCase();
-          if (normalizedUrl.startsWith('//')) normalizedUrl = 'https:' + normalizedUrl;
+          if (normalizedUrl.startsWith('//'))
+            normalizedUrl = 'https:' + normalizedUrl;
 
           for (const [, domains] of Object.entries(socialPlatforms)) {
-            if (domains.some(domain => normalizedUrl.includes(domain))) {
+            if (domains.some((domain) => normalizedUrl.includes(domain))) {
               try {
                 const url = new URL(normalizedUrl);
                 if (!socialMedia.includes(url.href)) socialMedia.push(url.href);
@@ -212,13 +256,18 @@ export class ScraperService {
                 try {
                   const baseUrl = 'https://' + domains[0];
                   const absoluteUrl = new URL(normalizedUrl, baseUrl).href;
-                  if (!socialMedia.includes(absoluteUrl)) socialMedia.push(absoluteUrl);
-                } catch { /* ignore */ }
+                  if (!socialMedia.includes(absoluteUrl))
+                    socialMedia.push(absoluteUrl);
+                } catch {
+                  /* ignore */
+                }
               }
               break;
             }
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     });
     return socialMedia;
@@ -226,7 +275,18 @@ export class ScraperService {
 
   extractLinks($: cheerio.CheerioAPI, baseUrl: string) {
     const links: string[] = [];
-    const excludeExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar', '.7z'];
+    const excludeExtensions = [
+      '.pdf',
+      '.doc',
+      '.docx',
+      '.xls',
+      '.xlsx',
+      '.ppt',
+      '.pptx',
+      '.zip',
+      '.rar',
+      '.7z',
+    ];
 
     $('a').each((_, element) => {
       const href = $(element).attr('href');
@@ -235,11 +295,19 @@ export class ScraperService {
           const url = new URL(href, baseUrl);
           url.hash = '';
           const absoluteUrl = url.href;
-          const hasExcludedExtension = excludeExtensions.some(ext => absoluteUrl.toLowerCase().endsWith(ext));
-          if (absoluteUrl.startsWith(baseUrl) && !hasExcludedExtension && !links.includes(absoluteUrl)) {
+          const hasExcludedExtension = excludeExtensions.some((ext) =>
+            absoluteUrl.toLowerCase().endsWith(ext),
+          );
+          if (
+            absoluteUrl.startsWith(baseUrl) &&
+            !hasExcludedExtension &&
+            !links.includes(absoluteUrl)
+          ) {
             links.push(absoluteUrl);
           }
-        } catch { /* skip invalid URLs */ }
+        } catch {
+          /* skip invalid URLs */
+        }
       }
     });
     return links;
@@ -256,29 +324,56 @@ export class ScraperService {
       const $ = cheerio.load(response.data);
       const result: any = { url };
 
-      if (contentType === 'all' || contentType === 'meta') result.meta = this.extractMetaTags($);
-      if (contentType === 'all' || contentType === 'images') result.images = this.extractImages($);
-      if (contentType === 'all' || contentType === 'videos') result.videos = this.extractVideos($, url);
-      if (contentType === 'all' || contentType === 'documents') result.documents = this.extractDocuments($);
-      if (contentType === 'all' || contentType === 'social') result.socialMedia = this.extractSocialMedia($);
-      if (contentType === 'all' || contentType === 'links') result.links = this.extractLinks($, url);
-      if (contentType === 'all' || contentType === 'content') result.content = this.extractContent($);
-      if (contentType === 'all' || contentType === 'contact') result.contacts = this.extractContactInfo($);
+      if (contentType === 'all' || contentType === 'meta')
+        result.meta = this.extractMetaTags($);
+      if (contentType === 'all' || contentType === 'images')
+        result.images = this.extractImages($);
+      if (contentType === 'all' || contentType === 'videos')
+        result.videos = this.extractVideos($, url);
+      if (contentType === 'all' || contentType === 'documents')
+        result.documents = this.extractDocuments($);
+      if (contentType === 'all' || contentType === 'social')
+        result.socialMedia = this.extractSocialMedia($);
+      if (contentType === 'all' || contentType === 'links')
+        result.links = this.extractLinks($, url);
+      if (contentType === 'all' || contentType === 'content')
+        result.content = this.extractContent($);
+      if (contentType === 'all' || contentType === 'contact')
+        result.contacts = this.extractContactInfo($);
 
       return result;
     } catch (error) {
       if (error.response) {
         switch (error.response.status) {
-          case 400: throw new Error(`Bad Request: The provided URL '${url}' is invalid or malformed.`);
-          case 403: throw new Error(`Access Forbidden: The website '${url}' has restricted access to web scraping.`);
-          case 413: throw new Error(`Content Too Large: The website '${url}' contains too much data to process.`);
-          case 500: throw new Error(`Internal Server Error: The website '${url}' is experiencing technical difficulties.`);
-          default: throw new Error(`Failed to scrape ${url}: ${error.response.status} - ${error.response.statusText}`);
+          case 400:
+            throw new Error(
+              `Bad Request: The provided URL '${url}' is invalid or malformed.`,
+            );
+          case 403:
+            throw new Error(
+              `Access Forbidden: The website '${url}' has restricted access to web scraping.`,
+            );
+          case 413:
+            throw new Error(
+              `Content Too Large: The website '${url}' contains too much data to process.`,
+            );
+          case 500:
+            throw new Error(
+              `Internal Server Error: The website '${url}' is experiencing technical difficulties.`,
+            );
+          default:
+            throw new Error(
+              `Failed to scrape ${url}: ${error.response.status} - ${error.response.statusText}`,
+            );
         }
       } else if (error.request) {
-        throw new Error(`Network Error: Unable to reach ${url}. Please check your internet connection.`);
+        throw new Error(
+          `Network Error: Unable to reach ${url}. Please check your internet connection.`,
+        );
       } else {
-        throw new Error(`Error occurred while scraping ${url}: ${error.message}`);
+        throw new Error(
+          `Error occurred while scraping ${url}: ${error.message}`,
+        );
       }
     }
   }
@@ -306,18 +401,39 @@ export class ScraperService {
         const newLinks = this.extractLinks($, url);
 
         const normalizedLinks = newLinks
-          .map(link => { try { return new URL(link, url).href; } catch { return null; } })
-          .filter((link): link is string => !!link && link.startsWith(baseUrl) && !visited.has(link) && !failedUrls.has(link));
+          .map((link) => {
+            try {
+              return new URL(link, url).href;
+            } catch {
+              return null;
+            }
+          })
+          .filter(
+            (link): link is string =>
+              !!link &&
+              link.startsWith(baseUrl) &&
+              !visited.has(link) &&
+              !failedUrls.has(link),
+          );
         queue.push(...normalizedLinks);
       } catch (error) {
         let errorMessage: string;
         if (error.response) {
           switch (error.response.status) {
-            case 400: errorMessage = `Bad Request: '${url}' is invalid.`; break;
-            case 403: errorMessage = `Access Forbidden: '${url}' restricted.`; break;
-            case 413: errorMessage = `Content Too Large: '${url}'.`; break;
-            case 500: errorMessage = `Server Error: '${url}'.`; break;
-            default: errorMessage = `Failed to scrape ${url}: ${error.response.status}`;
+            case 400:
+              errorMessage = `Bad Request: '${url}' is invalid.`;
+              break;
+            case 403:
+              errorMessage = `Access Forbidden: '${url}' restricted.`;
+              break;
+            case 413:
+              errorMessage = `Content Too Large: '${url}'.`;
+              break;
+            case 500:
+              errorMessage = `Server Error: '${url}'.`;
+              break;
+            default:
+              errorMessage = `Failed to scrape ${url}: ${error.response.status}`;
           }
         } else if (error.request) {
           errorMessage = `Network Error: Unable to reach ${url}.`;
@@ -336,9 +452,13 @@ export class ScraperService {
     return results;
   }
 
-  async getSitemapUrlCount(sitemapUrl: string, maxDepth = 3, currentDepth = 0): Promise<number> {
+  async getSitemapUrlCount(
+    sitemapUrl: string,
+    maxDepth = 3,
+    currentDepth = 0,
+  ): Promise<number> {
     if (currentDepth >= maxDepth) return 0;
-    
+
     try {
       const response = await axios.get(sitemapUrl, {
         timeout: 30000,
@@ -346,7 +466,7 @@ export class ScraperService {
       });
 
       const $ = cheerio.load(response.data, { xmlMode: true });
-      
+
       if ($('sitemapindex').length > 0) {
         let count = 0;
         const nested: string[] = [];
@@ -362,7 +482,9 @@ export class ScraperService {
         return $('url loc').length;
       }
     } catch (error) {
-      this.logger.error(`Failed to count sitemap ${sitemapUrl}: ${error.message}`);
+      this.logger.error(
+        `Failed to count sitemap ${sitemapUrl}: ${error.message}`,
+      );
     }
     return 0;
   }
@@ -372,7 +494,7 @@ export class ScraperService {
     onUrlFound: (url: string, index: number) => void,
     maxDepth = 3,
     currentDepth = 0,
-    maxPages = 10000
+    maxPages = 10000,
   ): Promise<number> {
     const seenUrls = new Set<string>();
     let urlIndex = 0;
@@ -385,9 +507,12 @@ export class ScraperService {
       return true;
     };
 
-    const parseRecursive = async (url: string, depth: number): Promise<void> => {
+    const parseRecursive = async (
+      url: string,
+      depth: number,
+    ): Promise<void> => {
       if (depth >= maxDepth || urlIndex >= maxPages) return;
-      
+
       try {
         const response = await axios.get(url, {
           timeout: 30000,
@@ -395,7 +520,7 @@ export class ScraperService {
         });
 
         const $ = cheerio.load(response.data, { xmlMode: true });
-        
+
         if ($('sitemapindex').length > 0) {
           const nested: string[] = [];
           $('sitemap loc').each((_, el) => {
@@ -431,13 +556,17 @@ export class ScraperService {
     return urlIndex;
   }
 
-  async parseSitemap(sitemapUrl: string, maxDepth = 3, currentDepth = 0): Promise<string[]> {
+  async parseSitemap(
+    sitemapUrl: string,
+    maxDepth = 3,
+    currentDepth = 0,
+  ): Promise<string[]> {
     const urls: string[] = [];
-    
+
     if (currentDepth >= maxDepth) {
       return urls;
     }
-    
+
     try {
       const response = await axios.get(sitemapUrl, {
         timeout: 30000,
@@ -456,7 +585,11 @@ export class ScraperService {
         });
 
         for (const nestedSitemap of nestedSitemaps) {
-          const nestedUrls = await this.parseSitemap(nestedSitemap, maxDepth, currentDepth + 1);
+          const nestedUrls = await this.parseSitemap(
+            nestedSitemap,
+            maxDepth,
+            currentDepth + 1,
+          );
           urls.push(...nestedUrls);
         }
       } else if (urlset) {
@@ -466,9 +599,11 @@ export class ScraperService {
         });
       } else {
         const textContent = $('body').text();
-        const urlMatches = textContent.match(/https?:\/\/[^\s<>"{}|\\^`\[\]]+/g);
+        const urlMatches = textContent.match(
+          /https?:\/\/[^\s<>"{}|\\^`\[\]]+/g,
+        );
         if (urlMatches) {
-          urls.push(...urlMatches.filter(url => url.startsWith('http')));
+          urls.push(...urlMatches.filter((url) => url.startsWith('http')));
         }
       }
     } catch (error) {
@@ -478,9 +613,13 @@ export class ScraperService {
     return [...new Set(urls)];
   }
 
-  async scrapeFromSitemap(sitemapUrl: string, contentType: string, maxPages = 100) {
+  async scrapeFromSitemap(
+    sitemapUrl: string,
+    contentType: string,
+    maxPages = 100,
+  ) {
     const urls = await this.parseSitemap(sitemapUrl);
-    
+
     if (urls.length === 0) {
       throw new Error('No URLs found in sitemap');
     }
@@ -499,11 +638,20 @@ export class ScraperService {
         let errorMessage: string;
         if (error.response) {
           switch (error.response.status) {
-            case 400: errorMessage = `Bad Request: '${url}' is invalid.`; break;
-            case 403: errorMessage = `Access Forbidden: '${url}' restricted.`; break;
-            case 413: errorMessage = `Content Too Large: '${url}'.`; break;
-            case 500: errorMessage = `Server Error: '${url}'.`; break;
-            default: errorMessage = `Failed to scrape ${url}: ${error.response.status}`;
+            case 400:
+              errorMessage = `Bad Request: '${url}' is invalid.`;
+              break;
+            case 403:
+              errorMessage = `Access Forbidden: '${url}' restricted.`;
+              break;
+            case 413:
+              errorMessage = `Content Too Large: '${url}'.`;
+              break;
+            case 500:
+              errorMessage = `Server Error: '${url}'.`;
+              break;
+            default:
+              errorMessage = `Failed to scrape ${url}: ${error.response.status}`;
           }
         } else if (error.request) {
           errorMessage = `Network Error: Unable to reach ${url}.`;

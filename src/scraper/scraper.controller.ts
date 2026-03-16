@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Render, Res, HttpStatus, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Render,
+  Res,
+  HttpStatus,
+  Query,
+  Logger,
+} from '@nestjs/common';
 import { ScraperService } from './scraper.service';
 import { DownloadService } from './download.service';
 import type { Response } from 'express';
@@ -7,6 +17,8 @@ import { Throttle } from '@nestjs/throttler';
 
 @Controller('scraper')
 export class ScraperController {
+  private readonly logger = new Logger(ScraperController.name);
+
   constructor(
     private readonly scraperService: ScraperService,
     private readonly downloadService: DownloadService,
@@ -28,14 +40,22 @@ export class ScraperController {
 
   @Get('extract-urls')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async extractUrls(@Query('sitemapUrl') sitemapUrl: string, @Res() res: Response) {
+  async extractUrls(
+    @Query('sitemapUrl') sitemapUrl: string,
+    @Res() res: Response,
+  ) {
+    this.logger.log(`extractUrls called with sitemapUrl: ${sitemapUrl}`);
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
     if (!sitemapUrl) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Sitemap URL is required' })}\n\n`);
+      this.logger.warn('extractUrls: Sitemap URL is required');
+      res.write(
+        `data: ${JSON.stringify({ type: 'error', message: 'Sitemap URL is required' })}\n\n`,
+      );
       res.end();
       return;
     }
@@ -44,40 +64,44 @@ export class ScraperController {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const delay = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
 
     try {
-      // First, get total count efficiently
-      const totalCount = await this.scraperService.getSitemapUrlCount(sitemapUrl);
+      this.logger.log(`Getting sitemap URL count for: ${sitemapUrl}`);
+      const totalCount =
+        await this.scraperService.getSitemapUrlCount(sitemapUrl);
 
       if (totalCount === 0) {
+        this.logger.warn(`No URLs found in sitemap: ${sitemapUrl}`);
         sendEvent({ type: 'error', message: 'No URLs found in sitemap' });
         res.end();
         return;
       }
 
-      // Send start event with total count
       sendEvent({ type: 'start', total: totalCount });
+      this.logger.log(`Found ${totalCount} URLs in sitemap`);
 
-      // Stream URLs as they're found (memory efficient)
       const totalUrls = await this.scraperService.streamSitemapUrls(
         sitemapUrl,
         (url, index) => {
-          sendEvent({ 
-            type: 'result', 
+          sendEvent({
+            type: 'result',
             url: url,
             index: index,
-            total: totalCount
+            total: totalCount,
           });
         },
         3,
         0,
-        10000 // Max 10000 pages
+        10000,
       );
 
       sendEvent({ type: 'complete', total: totalUrls });
+      this.logger.log(`extractUrls completed, total URLs: ${totalUrls}`);
       res.end();
     } catch (error) {
+      this.logger.error(`extractUrls error: ${error.message}`);
       sendEvent({ type: 'error', message: error.message });
       res.end();
     }
@@ -90,7 +114,9 @@ export class ScraperController {
       const { urls } = body;
 
       if (!urls || !Array.isArray(urls) || urls.length === 0) {
-        return res.status(HttpStatus.BAD_REQUEST).json({ error: 'No URLs to export' });
+        return res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'No URLs to export' });
       }
 
       const workbook = XLSX.utils.book_new();
@@ -102,12 +128,14 @@ export class ScraperController {
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
       res.setHeader('Content-Disposition', 'attachment');
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
       res.send(buffer);
-
     } catch (error) {
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        error: error.message || 'Failed to export URLs'
+        error: error.message || 'Failed to export URLs',
       });
     }
   }
@@ -115,40 +143,61 @@ export class ScraperController {
   @Post('scrape')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async scrape(@Body() body: any, @Res() res: Response) {
+    this.logger.log(
+      `scrape called: url=${body.url}, contentType=${body.contentType}, scrapeScope=${body.scrapeScope}`,
+    );
+
     try {
       const { url, contentType = 'all', scrapeScope = 'entire' } = body;
 
       if (!url) {
-        return res.status(HttpStatus.BAD_REQUEST).json({ error: 'URL is required' });
+        this.logger.warn('scrape: URL is required');
+        return res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'URL is required' });
       }
 
       if (scrapeScope === 'single') {
         try {
           new URL(url.startsWith('http') ? url : `https://${url}`);
         } catch {
-          return res.status(HttpStatus.BAD_REQUEST).json({ error: 'Invalid URL format. Please provide a valid URL.' });
+          return res
+            .status(HttpStatus.BAD_REQUEST)
+            .json({ error: 'Invalid URL format. Please provide a valid URL.' });
         }
 
         const websiteUrl = url.startsWith('http') ? url : `https://${url}`;
-        const result = await this.scraperService.scrapePage(websiteUrl, contentType);
+        this.logger.log(`Scrape single page: ${websiteUrl}`);
+        const result = await this.scraperService.scrapePage(
+          websiteUrl,
+          contentType,
+        );
         return res.json(result);
       } else {
-        let sitemapUrl = url;
-        
+        const sitemapUrl = url;
+
         try {
           new URL(sitemapUrl);
         } catch {
-          return res.status(HttpStatus.BAD_REQUEST).json({ error: 'Invalid sitemap URL format. Please provide a valid URL.' });
+          return res.status(HttpStatus.BAD_REQUEST).json({
+            error: 'Invalid sitemap URL format. Please provide a valid URL.',
+          });
         }
 
-        const pages = await this.scraperService.scrapeFromSitemap(sitemapUrl, contentType);
+        this.logger.log(`Scrape from sitemap: ${sitemapUrl}`);
+        const pages = await this.scraperService.scrapeFromSitemap(
+          sitemapUrl,
+          contentType,
+        );
         return res.json({ pages });
       }
     } catch (error) {
+      this.logger.error(`scrape error: ${error.message}`, error.stack);
       const errorResponse = {
         error: error.message,
         status: error.response?.status || 500,
-        details: error.response?.statusText || 'An error occurred during scraping',
+        details:
+          error.response?.statusText || 'An error occurred during scraping',
       };
       return res.status(errorResponse.status).json(errorResponse);
     }
@@ -157,17 +206,34 @@ export class ScraperController {
   @Post('download')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async download(@Body() body: any, @Res() res: Response) {
+    this.logger.log(`download called`);
+
     try {
-      const { data, contentType, scrapeScope, format = ['json', 'xlsx'] } = body;
+      const {
+        data,
+        contentType,
+        scrapeScope,
+        format = ['json', 'xlsx'],
+      } = body;
       const formatArray = Array.isArray(format) ? format : [format];
 
-      const result = await this.downloadService.processDownload(data, contentType, scrapeScope, formatArray);
+      this.logger.log(
+        `Processing download: contentType=${contentType}, format=${formatArray.join(',')}`,
+      );
+      const result = await this.downloadService.processDownload(
+        data,
+        contentType,
+        scrapeScope,
+        formatArray,
+      );
 
       res.download(result.filePath, result.fileName, (err) => {
-        if (err) console.error('Error sending file:', err);
+        if (err) this.logger.error(`Error sending file: ${err.message}`);
         result.cleanup();
       });
+      this.logger.log(`Download completed: ${result.fileName}`);
     } catch (error) {
+      this.logger.error(`download error: ${error.message}`, error.stack);
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         type: 'error',
         error: error.message || 'Failed to process request',
@@ -179,20 +245,30 @@ export class ScraperController {
   @Post('download-media')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async downloadMedia(@Body() body: any, @Res() res: Response) {
+    this.logger.log(`downloadMedia called`);
+
     try {
       const { mediaFiles } = body;
 
-      if (!mediaFiles || !Array.isArray(mediaFiles) || mediaFiles.length === 0) {
-        return res.status(HttpStatus.BAD_REQUEST).json({ error: 'No media files to download' });
+      if (
+        !mediaFiles ||
+        !Array.isArray(mediaFiles) ||
+        mediaFiles.length === 0
+      ) {
+        return res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'No media files to download' });
       }
 
+      this.logger.log(`Downloading ${mediaFiles.length} media files`);
       const result = await this.downloadService.downloadMedia(mediaFiles);
 
       res.download(result.filePath, result.fileName, (err) => {
-        if (err) console.error('Error sending file:', err);
+        if (err) this.logger.error(`Error sending media file: ${err.message}`);
         result.cleanup();
       });
     } catch (error) {
+      this.logger.error(`downloadMedia error: ${error.message}`, error.stack);
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         type: 'error',
         error: error.message || 'Failed to download media',
@@ -204,6 +280,8 @@ export class ScraperController {
   @Post('download-media/stream')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async downloadMediaStream(@Body() body: any, @Res() res: Response) {
+    this.logger.log(`downloadMediaStream called`);
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -212,7 +290,10 @@ export class ScraperController {
     const { mediaFiles } = body;
 
     if (!mediaFiles || !Array.isArray(mediaFiles) || mediaFiles.length === 0) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'No media files to download' })}\n\n`);
+      this.logger.warn('downloadMediaStream: No media files to download');
+      res.write(
+        `data: ${JSON.stringify({ type: 'error', message: 'No media files to download' })}\n\n`,
+      );
       res.end();
       return;
     }
@@ -222,16 +303,31 @@ export class ScraperController {
     };
 
     try {
-      const result = await this.downloadService.downloadMediaWithProgress(mediaFiles, (progress) => {
-        sendEvent({ type: 'progress', ...progress });
-      });
+      this.logger.log(
+        `Streaming download for ${mediaFiles.length} media files`,
+      );
+      const result = await this.downloadService.downloadMediaWithProgress(
+        mediaFiles,
+        (progress) => {
+          sendEvent({ type: 'progress', ...progress });
+        },
+      );
 
-      sendEvent({ type: 'complete', filePath: result.filePath, fileName: result.fileName });
+      sendEvent({
+        type: 'complete',
+        filePath: result.filePath,
+        fileName: result.fileName,
+      });
+      this.logger.log(`downloadMediaStream completed`);
 
       res.on('close', () => {
         result.cleanup();
       });
     } catch (error) {
+      this.logger.error(
+        `downloadMediaStream error: ${error.message}`,
+        error.stack,
+      );
       sendEvent({ type: 'error', message: error.message });
       res.end();
     }
@@ -240,15 +336,27 @@ export class ScraperController {
   @Post('scrape/stream')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async streamScrape(@Body() body: any, @Res() res: Response) {
+    this.logger.log(
+      `streamScrape called: url=${body.url}, contentType=${body.contentType}, scrapeScope=${body.scrapeScope}`,
+    );
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    const { url, contentType = 'all', scrapeScope = 'entire', maxPages = 10000 } = body;
+    const {
+      url,
+      contentType = 'all',
+      scrapeScope = 'entire',
+      maxPages = 10000,
+    } = body;
 
     if (!url) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'URL is required' })}\n\n`);
+      this.logger.warn('streamScrape: URL is required');
+      res.write(
+        `data: ${JSON.stringify({ type: 'error', message: 'URL is required' })}\n\n`,
+      );
       res.end();
       return;
     }
@@ -259,14 +367,18 @@ export class ScraperController {
 
     try {
       const websiteUrl = url.startsWith('http') ? url : `https://${url}`;
-      
+
       if (scrapeScope === 'single') {
-        const result = await this.scraperService.scrapePage(websiteUrl, contentType);
+        const result = await this.scraperService.scrapePage(
+          websiteUrl,
+          contentType,
+        );
         sendEvent({ type: 'result', page: result });
         sendEvent({ type: 'complete', totalPages: 1 });
+        this.logger.log(`streamScrape completed for single page`);
         res.end();
       } else {
-        let sitemapUrl = url;
+        const sitemapUrl = url;
         try {
           new URL(sitemapUrl);
         } catch {
@@ -277,7 +389,7 @@ export class ScraperController {
 
         const urls = await this.scraperService.parseSitemap(sitemapUrl);
         const uniqueUrls = [...new Set(urls)].slice(0, maxPages);
-        
+
         if (uniqueUrls.length === 0) {
           sendEvent({ type: 'error', message: 'No URLs found in sitemap' });
           res.end();
@@ -285,8 +397,9 @@ export class ScraperController {
         }
 
         const totalPages = uniqueUrls.length;
-        
+
         sendEvent({ type: 'start', totalPages });
+        this.logger.log(`Starting scrape for ${totalPages} pages`);
 
         const failedUrls = new Set<string>();
 
@@ -295,12 +408,15 @@ export class ScraperController {
           if (failedUrls.has(pageUrl)) continue;
 
           try {
-            const pageData = await this.scraperService.scrapePage(pageUrl, contentType);
-            sendEvent({ 
-              type: 'result', 
+            const pageData = await this.scraperService.scrapePage(
+              pageUrl,
+              contentType,
+            );
+            sendEvent({
+              type: 'result',
               page: pageData,
               current: i + 1,
-              total: totalPages 
+              total: totalPages,
             });
           } catch (error) {
             let errorMessage: string;
@@ -312,19 +428,27 @@ export class ScraperController {
               errorMessage = error.message?.split(':')[0] || 'Error';
             }
             failedUrls.add(pageUrl);
-            sendEvent({ 
-              type: 'result', 
+            sendEvent({
+              type: 'result',
               page: { url: pageUrl, error: errorMessage },
               current: i + 1,
-              total: totalPages 
+              total: totalPages,
             });
           }
         }
 
-        sendEvent({ type: 'complete', totalPages: uniqueUrls.length - failedUrls.size, failed: failedUrls.size });
+        sendEvent({
+          type: 'complete',
+          totalPages: uniqueUrls.length - failedUrls.size,
+          failed: failedUrls.size,
+        });
+        this.logger.log(
+          `streamScrape completed: ${uniqueUrls.length - failedUrls.size} succeeded, ${failedUrls.size} failed`,
+        );
         res.end();
       }
     } catch (error) {
+      this.logger.error(`streamScrape error: ${error.message}`, error.stack);
       sendEvent({ type: 'error', message: error.message });
       res.end();
     }
@@ -337,11 +461,14 @@ export class ScraperController {
     @Query('contentType') contentType: string = 'all',
     @Query('scrapeScope') scrapeScope: string = 'entire',
     @Query('maxPages') maxPages: string = '100',
-    @Res() res?: Response
+    @Res() res?: Response,
   ) {
     const maxPagesNum = parseInt(maxPages) || 10000;
     if (res) {
-      return this.streamScrapeInternal({ url, contentType, scrapeScope, maxPages: maxPagesNum }, res);
+      return this.streamScrapeInternal(
+        { url, contentType, scrapeScope, maxPages: maxPagesNum },
+        res,
+      );
     }
     return { error: 'Response object required' };
   }
@@ -352,10 +479,17 @@ export class ScraperController {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    const { url, contentType = 'all', scrapeScope = 'entire', maxPages = 10000 } = body;
+    const {
+      url,
+      contentType = 'all',
+      scrapeScope = 'entire',
+      maxPages = 10000,
+    } = body;
 
     if (!url) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'URL is required' })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: 'error', message: 'URL is required' })}\n\n`,
+      );
       res.end();
       return;
     }
@@ -366,14 +500,17 @@ export class ScraperController {
 
     try {
       const websiteUrl = url.startsWith('http') ? url : `https://${url}`;
-      
+
       if (scrapeScope === 'single') {
-        const result = await this.scraperService.scrapePage(websiteUrl, contentType);
+        const result = await this.scraperService.scrapePage(
+          websiteUrl,
+          contentType,
+        );
         sendEvent({ type: 'result', page: result });
         sendEvent({ type: 'complete', totalPages: 1 });
         res.end();
       } else {
-        let sitemapUrl = url;
+        const sitemapUrl = url;
         try {
           new URL(sitemapUrl);
         } catch {
@@ -385,7 +522,7 @@ export class ScraperController {
         const urls = await this.scraperService.parseSitemap(sitemapUrl);
         const uniqueUrls = [...new Set(urls)].slice(0, maxPages);
         const totalPages = uniqueUrls.length;
-        
+
         sendEvent({ type: 'start', totalPages });
 
         const failedUrls = new Set<string>();
@@ -395,12 +532,15 @@ export class ScraperController {
           if (failedUrls.has(pageUrl)) continue;
 
           try {
-            const pageData = await this.scraperService.scrapePage(pageUrl, contentType);
-            sendEvent({ 
-              type: 'result', 
+            const pageData = await this.scraperService.scrapePage(
+              pageUrl,
+              contentType,
+            );
+            sendEvent({
+              type: 'result',
               page: pageData,
               current: i + 1,
-              total: totalPages 
+              total: totalPages,
             });
           } catch (error) {
             let errorMessage: string;
@@ -412,16 +552,20 @@ export class ScraperController {
               errorMessage = error.message?.split(':')[0] || 'Error';
             }
             failedUrls.add(pageUrl);
-            sendEvent({ 
-              type: 'result', 
+            sendEvent({
+              type: 'result',
               page: { url: pageUrl, error: errorMessage },
               current: i + 1,
-              total: totalPages 
+              total: totalPages,
             });
           }
         }
 
-        sendEvent({ type: 'complete', totalPages: uniqueUrls.length - failedUrls.size, failed: failedUrls.size });
+        sendEvent({
+          type: 'complete',
+          totalPages: uniqueUrls.length - failedUrls.size,
+          failed: failedUrls.size,
+        });
         res.end();
       }
     } catch (error) {

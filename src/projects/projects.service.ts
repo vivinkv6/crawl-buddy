@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CrawlerService, PageData } from '../crawler.service';
 import { Project } from '@prisma/client';
@@ -29,13 +29,22 @@ export interface ProjectReport {
 
 @Injectable()
 export class ProjectsService {
+  private readonly logger = new Logger(ProjectsService.name);
+
   constructor(
     private prisma: PrismaService,
     private crawler: CrawlerService,
     private readonly redis: RedisService,
   ) {}
 
-  async createProject(oldSiteUrl: string, newSiteUrl: string, sitemapUrl?: string) {
+  async createProject(
+    oldSiteUrl: string,
+    newSiteUrl: string,
+    sitemapUrl?: string,
+  ) {
+    this.logger.log(
+      `Creating project: oldSiteUrl=${oldSiteUrl}, newSiteUrl=${newSiteUrl}, sitemapUrl=${sitemapUrl}`,
+    );
     return this.prisma.project.create({
       data: {
         oldSiteUrl: oldSiteUrl.trim(),
@@ -46,6 +55,7 @@ export class ProjectsService {
   }
 
   async getProject(id: string) {
+    this.logger.log(`Fetching project: ${id}`);
     const project = await this.prisma.project.findUnique({
       where: { id },
     });
@@ -56,83 +66,100 @@ export class ProjectsService {
   // Map to store active crawl cancellation tokens or flags
   // We can keep this in memory for now as it's process-local control, or move to Redis if we want distributed cancellation
   private activeCrawls = new Map<string, boolean>();
-  
+
   // Cache to store crawl results for export - NOW REDIS
   // private resultsCache = new Map<string, ProjectReport>();
 
   // Helper to generate a unique cache key based on the URLs
   private getUrlCacheKey(oldUrl: string, newUrl: string): string {
-      // Simple hash-like key or just use base64 to be safe
-      const normalizedOld = oldUrl.trim().replace(/\/$/, '');
-      const normalizedNew = newUrl.trim().replace(/\/$/, '');
-      return `report:urls:${Buffer.from(normalizedOld + '|' + normalizedNew).toString('base64')}`;
+    // Simple hash-like key or just use base64 to be safe
+    const normalizedOld = oldUrl.trim().replace(/\/$/, '');
+    const normalizedNew = newUrl.trim().replace(/\/$/, '');
+    return `report:urls:${Buffer.from(normalizedOld + '|' + normalizedNew).toString('base64')}`;
   }
 
   streamComparison(id: string): Observable<MessageEvent> {
     const subject = new Subject<MessageEvent>();
-    
+
     // Mark as active
     this.activeCrawls.set(id, true);
 
     // Fetch project details first to get URLs
-    this.getProject(id).then(project => {
-        const cacheKey = this.getUrlCacheKey(project.oldSiteUrl, project.newSiteUrl);
+    this.getProject(id)
+      .then((project) => {
+        const cacheKey = this.getUrlCacheKey(
+          project.oldSiteUrl,
+          project.newSiteUrl,
+        );
 
         // Check Cache by URL Pair
-        this.redis.get(cacheKey).then((cached) => {
+        this.redis
+          .get(cacheKey)
+          .then((cached) => {
             if (cached) {
-                console.log(`[streamComparison] Cache hit for URL pair (Project ${id}). Replaying results.`);
-                const report = JSON.parse(cached) as ProjectReport;
-                
-                // Replay results
-                for (const result of report.results) {
-                    subject.next({ data: { type: 'result', result } } as MessageEvent);
-                }
-                
-                subject.next({ data: { type: 'complete' } } as MessageEvent);
-                subject.complete();
-                this.activeCrawls.delete(id);
+              console.log(
+                `[streamComparison] Cache hit for URL pair (Project ${id}). Replaying results.`,
+              );
+              const report = JSON.parse(cached) as ProjectReport;
+
+              // Replay results
+              for (const result of report.results) {
+                subject.next({
+                  data: { type: 'result', result },
+                } as MessageEvent);
+              }
+
+              subject.next({ data: { type: 'complete' } } as MessageEvent);
+              subject.complete();
+              this.activeCrawls.delete(id);
             } else {
-                // Start process in background if no cache
-                console.log(`[streamComparison] Cache miss for URL pair (Project ${id}). Starting live crawl.`);
-                this.runComparisonStreaming(id, subject);
+              // Start process in background if no cache
+              console.log(
+                `[streamComparison] Cache miss for URL pair (Project ${id}). Starting live crawl.`,
+              );
+              this.runComparisonStreaming(id, subject);
             }
-        }).catch(err => {
+          })
+          .catch((err) => {
             console.error('Redis cache check failed', err);
             this.runComparisonStreaming(id, subject);
-        });
-    }).catch(err => {
+          });
+      })
+      .catch((err) => {
         console.error('Project not found during stream init', err);
         subject.error(err);
-    });
+      });
 
     // Handle client disconnect (unsubscription)
     const observable = subject.asObservable();
-    
+
     return new Observable<MessageEvent>((subscriber) => {
-        const subscription = subject.subscribe(subscriber);
-        return () => {
-            // Cleanup logic when client disconnects
-            console.log(`Client disconnected for project ${id}. Stopping crawl.`);
-            this.activeCrawls.set(id, false);
-            subscription.unsubscribe();
-        };
+      const subscription = subject.subscribe(subscriber);
+      return () => {
+        // Cleanup logic when client disconnects
+        console.log(`Client disconnected for project ${id}. Stopping crawl.`);
+        this.activeCrawls.set(id, false);
+        subscription.unsubscribe();
+      };
     });
   }
 
-  private async runComparisonStreaming(id: string, subject: Subject<MessageEvent>) {
+  private async runComparisonStreaming(
+    id: string,
+    subject: Subject<MessageEvent>,
+  ) {
     try {
       const project = await this.getProject(id);
-      
+
       // We will use Redis to store these intermediate maps if we want to avoid memory crashes.
-      // However, for simplicity and performance of the streaming logic, keeping them in memory 
-      // is much faster unless the site is huge. 
+      // However, for simplicity and performance of the streaming logic, keeping them in memory
+      // is much faster unless the site is huge.
       // The user asked to "Move State to Redis ... store active crawl results".
       // Let's interpret this as storing the FINAL result in Redis, and maybe the "visited" set if we can.
       // But refactoring the entire CrawlerService to be stateless/Redis-backed is a huge task.
       // We will stick to in-memory for the CRAWL process (which now has concurrency control),
       // but we will definitely store the RESULT in Redis.
-      
+
       const oldSiteData = new Map<string, PageData>();
       const newSiteData = new Map<string, PageData>();
       const processedOldUrls = new Set<string>();
@@ -150,403 +177,497 @@ export class ProjectsService {
       let nestedSitemaps: string[] = [];
 
       try {
-          // Priority: User provided sitemap -> Auto-discovered sitemap
-          const userSitemap = project.sitemapUrl?.trim();
-          let targetSitemap = '';
-          if (userSitemap) {
-              targetSitemap = userSitemap;
-          }
-          
-          console.log(`Trying to fetch sitemap: ${targetSitemap}`);
-          const sitemapData = await this.crawler.fetchSitemapContent(targetSitemap);
-          sitemapUrls = sitemapData.urls;
-          nestedSitemaps = sitemapData.nestedSitemaps;
+        // Priority: User provided sitemap -> Auto-discovered sitemap
+        const userSitemap = project.sitemapUrl?.trim();
+        let targetSitemap = '';
+        if (userSitemap) {
+          targetSitemap = userSitemap;
+        }
 
+        console.log(`Trying to fetch sitemap: ${targetSitemap}`);
+        const sitemapData =
+          await this.crawler.fetchSitemapContent(targetSitemap);
+        sitemapUrls = sitemapData.urls;
+        nestedSitemaps = sitemapData.nestedSitemaps;
       } catch (e) {
-          console.log(`Sitemap fetch failed: ${e.message}`);
+        console.log(`Sitemap fetch failed: ${e.message}`);
       }
-      
+
       // Determine strategy: Sitemap-driven or Recursive Crawl
-      const useSitemapStrategy = sitemapUrls.length > 0 || nestedSitemaps.length > 0;
-      
+      const useSitemapStrategy =
+        sitemapUrls.length > 0 || nestedSitemaps.length > 0;
+
       const startUrls = useSitemapStrategy ? sitemapUrls : [project.oldSiteUrl];
       // For logging progress, we might not know total initially if nested sitemaps exist
-      let crawlMaxPages = useSitemapStrategy ? sitemapUrls.length : 10000;
+      const crawlMaxPages = useSitemapStrategy ? sitemapUrls.length : 10000;
 
       // Start crawling Old Site and stream results immediately
       // We also crawl New Site in parallel to find "New" pages
-      
+
       const crawlPromises = [
         // Old Site Crawl
         (async () => {
-             // 1. Process Main Sitemap URLs first
-             if (useSitemapStrategy) {
-                 console.log(`[Crawl Strategy] Sitemap-based. Initial URLs: ${sitemapUrls.length}, Nested Sitemaps: ${nestedSitemaps.length}`);
-                 
-                 // Process direct URLs from main sitemap
-                 await this.processUrlBatch(sitemapUrls, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
-                 
-                 // 2. Process Nested Sitemaps Sequentially
-                 for (const nestedSitemapUrl of nestedSitemaps) {
-                     if (isCancelled()) break;
-                     console.log(`[Nested Sitemap] Processing: ${nestedSitemapUrl}`);
-                     
-                     // Fetch child sitemap content
-                     const childData = await this.crawler.fetchSitemapContent(nestedSitemapUrl);
-                     
-                     if (childData.nestedSitemaps.length > 0) {
-                         // Deep recursion? For now let's just handle one level deep as requested or iterate
-                         // The user said: "check inside the given one contain any sitemap if not then try to crawl entire urls"
-                         // This implies we should support deeper nesting. 
-                         // Let's add them to the END of the loop? 
-                         // No, better to recurse or just stack them.
-                         // Simple approach: Add found nested sitemaps to the 'nestedSitemaps' array we are iterating?
-                         // Mutating array while iterating is tricky in for..of.
-                         // Let's use a queue for sitemaps.
-                         nestedSitemaps.push(...childData.nestedSitemaps);
-                     }
-                     
-                     console.log(`[Nested Sitemap] Found ${childData.urls.length} URLs in ${nestedSitemapUrl}`);
-                     await this.processUrlBatch(childData.urls, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
-                 }
-                 
-             } else {
-                 // Standard Recursive Crawl (Homepage)
-                 console.log(`[Crawl Strategy] Recursive from Homepage: ${startUrls[0]}`);
-                 await this.crawler.crawlSite(startUrls[0], 10000, async (oldPage) => {
-                     if (isCancelled()) return;
-                     await this.processSinglePage(oldPage, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
-                 }, isCancelled, 10);
-             }
+          // 1. Process Main Sitemap URLs first
+          if (useSitemapStrategy) {
+            console.log(
+              `[Crawl Strategy] Sitemap-based. Initial URLs: ${sitemapUrls.length}, Nested Sitemaps: ${nestedSitemaps.length}`,
+            );
+
+            // Process direct URLs from main sitemap
+            await this.processUrlBatch(
+              sitemapUrls,
+              id,
+              oldSiteData,
+              processedOldUrls,
+              newSiteData,
+              results,
+              oldUrlsFound,
+              newUrlsFound,
+              subject,
+              project,
+              isCancelled,
+            );
+
+            // 2. Process Nested Sitemaps Sequentially
+            for (const nestedSitemapUrl of nestedSitemaps) {
+              if (isCancelled()) break;
+              console.log(`[Nested Sitemap] Processing: ${nestedSitemapUrl}`);
+
+              // Fetch child sitemap content
+              const childData =
+                await this.crawler.fetchSitemapContent(nestedSitemapUrl);
+
+              if (childData.nestedSitemaps.length > 0) {
+                // Deep recursion? For now let's just handle one level deep as requested or iterate
+                // The user said: "check inside the given one contain any sitemap if not then try to crawl entire urls"
+                // This implies we should support deeper nesting.
+                // Let's add them to the END of the loop?
+                // No, better to recurse or just stack them.
+                // Simple approach: Add found nested sitemaps to the 'nestedSitemaps' array we are iterating?
+                // Mutating array while iterating is tricky in for..of.
+                // Let's use a queue for sitemaps.
+                nestedSitemaps.push(...childData.nestedSitemaps);
+              }
+
+              console.log(
+                `[Nested Sitemap] Found ${childData.urls.length} URLs in ${nestedSitemapUrl}`,
+              );
+              await this.processUrlBatch(
+                childData.urls,
+                id,
+                oldSiteData,
+                processedOldUrls,
+                newSiteData,
+                results,
+                oldUrlsFound,
+                newUrlsFound,
+                subject,
+                project,
+                isCancelled,
+              );
+            }
+          } else {
+            // Standard Recursive Crawl (Homepage)
+            console.log(
+              `[Crawl Strategy] Recursive from Homepage: ${startUrls[0]}`,
+            );
+            await this.crawler.crawlSite(
+              startUrls[0],
+              10000,
+              async (oldPage) => {
+                if (isCancelled()) return;
+                await this.processSinglePage(
+                  oldPage,
+                  id,
+                  oldSiteData,
+                  processedOldUrls,
+                  newSiteData,
+                  results,
+                  oldUrlsFound,
+                  newUrlsFound,
+                  subject,
+                  project,
+                  isCancelled,
+                );
+              },
+              isCancelled,
+              10,
+            );
+          }
         })(),
-        
+
         // New Site Crawl (to populate newSiteData for later orphan check)
-        this.crawler.crawlSite(project.newSiteUrl, 10000, (newPage) => {
+        this.crawler.crawlSite(
+          project.newSiteUrl,
+          10000,
+          (newPage) => {
             if (isCancelled()) return; // Stop processing
             newSiteData.set(newPage.url, newPage);
-        }, isCancelled, 10) // Pass cancellation token and concurrency
+          },
+          isCancelled,
+          10,
+        ), // Pass cancellation token and concurrency
       ];
 
       await Promise.all(crawlPromises);
 
       if (isCancelled()) {
-          console.log(`Crawl for ${id} was cancelled. Skipping finalization.`);
-          subject.complete();
-          return;
+        console.log(`Crawl for ${id} was cancelled. Skipping finalization.`);
+        subject.complete();
+        return;
       }
 
       // Build Report and Cache
-      const metaIssuesCount = results.filter(r => r.status === 'Matched' && r.issues.length > 0).length;
+      const metaIssuesCount = results.filter(
+        (r) => r.status === 'Matched' && r.issues.length > 0,
+      ).length;
       const report: ProjectReport = {
-          project,
-          summary: {
-              totalOld: oldUrlsFound.size,
-              totalNew: newUrlsFound.size,
-              missing: results.filter(r => r.status === 'Missing').length,
-              newPages: 0,
-              metaIssues: metaIssuesCount
-          },
-          results
+        project,
+        summary: {
+          totalOld: oldUrlsFound.size,
+          totalNew: newUrlsFound.size,
+          missing: results.filter((r) => r.status === 'Missing').length,
+          newPages: 0,
+          metaIssues: metaIssuesCount,
+        },
+        results,
       };
-      
+
       // Save to Redis (Expire in 1 hour)
-      console.log(`[runComparisonStreaming] Saving report to Redis for project ${id} (TTL: 3600s)`);
-      
+      console.log(
+        `[runComparisonStreaming] Saving report to Redis for project ${id} (TTL: 3600s)`,
+      );
+
       // Save by ID (legacy/direct lookup)
       await this.redis.set(`report:${id}`, JSON.stringify(report), 3600);
-      
+
       // Save by URL Pair (for reuse across projects)
-      const urlKey = this.getUrlCacheKey(project.oldSiteUrl, project.newSiteUrl);
-      console.log(`[runComparisonStreaming] Saving report to Redis for URLs (Key: ${urlKey})`);
+      const urlKey = this.getUrlCacheKey(
+        project.oldSiteUrl,
+        project.newSiteUrl,
+      );
+      console.log(
+        `[runComparisonStreaming] Saving report to Redis for URLs (Key: ${urlKey})`,
+      );
       await this.redis.set(urlKey, JSON.stringify(report), 3600);
 
       subject.next({ data: { type: 'complete' } } as MessageEvent);
       subject.complete();
-
     } catch (error) {
-        if (this.activeCrawls.get(id) !== false) {
-             subject.next({ data: { type: 'error', message: error.message } } as MessageEvent);
-        }
-        subject.complete();
+      if (this.activeCrawls.get(id) !== false) {
+        subject.next({
+          data: { type: 'error', message: error.message },
+        } as MessageEvent);
+      }
+      subject.complete();
     } finally {
-        this.activeCrawls.delete(id);
+      this.activeCrawls.delete(id);
     }
   }
 
   // Helper to process a batch of URLs from Sitemap
   private async processUrlBatch(
-      urls: string[], 
-      id: string,
-      oldSiteData: Map<string, PageData>,
-      processedOldUrls: Set<string>,
-      newSiteData: Map<string, PageData>,
-      results: ComparisonResult[],
-      oldUrlsFound: Set<string>,
-      newUrlsFound: Set<string>,
-      subject: Subject<MessageEvent>,
-      project: Project,
-      isCancelled: () => boolean
+    urls: string[],
+    id: string,
+    oldSiteData: Map<string, PageData>,
+    processedOldUrls: Set<string>,
+    newSiteData: Map<string, PageData>,
+    results: ComparisonResult[],
+    oldUrlsFound: Set<string>,
+    newUrlsFound: Set<string>,
+    subject: Subject<MessageEvent>,
+    project: Project,
+    isCancelled: () => boolean,
   ) {
-      if (urls.length === 0) return;
-      
-      console.log(`[Batch] Starting processing of ${urls.length} URLs`);
+    if (urls.length === 0) return;
 
-      // Use a concurrency limit
-      const concurrency = 10;
-      const queue = [...urls];
-      const activePromises = new Set<Promise<void>>();
+    console.log(`[Batch] Starting processing of ${urls.length} URLs`);
 
-      while (queue.length > 0 || activePromises.size > 0) {
-          if (isCancelled()) break;
+    // Use a concurrency limit
+    const concurrency = 10;
+    const queue = [...urls];
+    const activePromises = new Set<Promise<void>>();
 
-          while (queue.length > 0 && activePromises.size < concurrency) {
-              const url = queue.shift();
-              if (!url) continue;
+    while (queue.length > 0 || activePromises.size > 0) {
+      if (isCancelled()) break;
 
-              const promise = (async () => {
-                  try {
-                      // Fetch the page data
-                      const oldPage = await this.crawler.fetchPage(url);
-                      
-                      // Process the result
-                      await this.processSinglePage(oldPage, id, oldSiteData, processedOldUrls, newSiteData, results, oldUrlsFound, newUrlsFound, subject, project, isCancelled);
-                  } catch (e) {
-                      console.error(`Error processing sitemap URL ${url}: ${e.message}`);
-                  }
-              })();
+      while (queue.length > 0 && activePromises.size < concurrency) {
+        const url = queue.shift();
+        if (!url) continue;
 
-              activePromises.add(promise);
-              promise.finally(() => {
-                  activePromises.delete(promise);
-                  // Log progress every 10 completions or so
-                  if (results.length % 10 === 0) {
-                      console.log(`[Progress] Processed ${results.length} pages...`);
-                  }
-              });
+        const promise = (async () => {
+          try {
+            // Fetch the page data
+            const oldPage = await this.crawler.fetchPage(url);
+
+            // Process the result
+            await this.processSinglePage(
+              oldPage,
+              id,
+              oldSiteData,
+              processedOldUrls,
+              newSiteData,
+              results,
+              oldUrlsFound,
+              newUrlsFound,
+              subject,
+              project,
+              isCancelled,
+            );
+          } catch (e) {
+            console.error(`Error processing sitemap URL ${url}: ${e.message}`);
           }
-          
-          if (activePromises.size > 0) {
-              await Promise.race(activePromises);
+        })();
+
+        activePromises.add(promise);
+        promise.finally(() => {
+          activePromises.delete(promise);
+          // Log progress every 10 completions or so
+          if (results.length % 10 === 0) {
+            console.log(`[Progress] Processed ${results.length} pages...`);
           }
+        });
       }
-      console.log(`[Batch] Completed processing batch of ${urls.length} URLs`);
+
+      if (activePromises.size > 0) {
+        await Promise.race(activePromises);
+      }
+    }
+    console.log(`[Batch] Completed processing batch of ${urls.length} URLs`);
   }
 
   // Helper to process a single page result and emit
   private async processSinglePage(
-      oldPage: PageData,
-      id: string,
-      oldSiteData: Map<string, PageData>,
-      processedOldUrls: Set<string>,
-      newSiteData: Map<string, PageData>,
-      results: ComparisonResult[],
-      oldUrlsFound: Set<string>,
-      newUrlsFound: Set<string>,
-      subject: Subject<MessageEvent>,
-      project: Project,
-      isCancelled: () => boolean
+    oldPage: PageData,
+    id: string,
+    oldSiteData: Map<string, PageData>,
+    processedOldUrls: Set<string>,
+    newSiteData: Map<string, PageData>,
+    results: ComparisonResult[],
+    oldUrlsFound: Set<string>,
+    newUrlsFound: Set<string>,
+    subject: Subject<MessageEvent>,
+    project: Project,
+    isCancelled: () => boolean,
   ) {
-       if (isCancelled()) return;
-       
-       oldSiteData.set(oldPage.url, oldPage);
-       processedOldUrls.add(oldPage.url);
-       
-       const result = await this.checkSinglePage(oldPage, project.newSiteUrl);
-       if (result.newData && result.newUrl) newSiteData.set(result.newUrl, result.newData);
-       
-       if (!isCancelled()) {
-           results.push(result);
-           if (result.oldUrl) oldUrlsFound.add(result.oldUrl);
-           if (result.newUrl) newUrlsFound.add(result.newUrl);
-           subject.next({ data: { type: 'result', result } } as MessageEvent);
-       }
+    if (isCancelled()) return;
+
+    oldSiteData.set(oldPage.url, oldPage);
+    processedOldUrls.add(oldPage.url);
+
+    const result = await this.checkSinglePage(oldPage, project.newSiteUrl);
+    if (result.newData && result.newUrl)
+      newSiteData.set(result.newUrl, result.newData);
+
+    if (!isCancelled()) {
+      results.push(result);
+      if (result.oldUrl) oldUrlsFound.add(result.oldUrl);
+      if (result.newUrl) newUrlsFound.add(result.newUrl);
+      subject.next({ data: { type: 'result', result } } as MessageEvent);
+    }
   }
 
-  private async checkSinglePage(oldPage: PageData, newSiteBase: string): Promise<ComparisonResult> {
-      // Logic:
-      // 1. Get relative path from Old Page
-      // 2. Construct New URL
-      // 3. Fetch New URL (following redirects)
-      
-      const oldUrlObj = new URL(oldPage.url);
-      const relativePath = oldPage.url.replace(oldUrlObj.origin, '');
-      const expectedNewUrl = new URL(relativePath, newSiteBase).href;
+  private async checkSinglePage(
+    oldPage: PageData,
+    newSiteBase: string,
+  ): Promise<ComparisonResult> {
+    // Logic:
+    // 1. Get relative path from Old Page
+    // 2. Construct New URL
+    // 3. Fetch New URL (following redirects)
 
-      let newPage: PageData | null = null;
-      
-      // Try fetch
-      try {
-          const fetched = await this.crawler.fetchPage(expectedNewUrl);
-          newPage = fetched;
-      } catch (e) {}
+    const oldUrlObj = new URL(oldPage.url);
+    const relativePath = oldPage.url.replace(oldUrlObj.origin, '');
+    const expectedNewUrl = new URL(relativePath, newSiteBase).href;
 
-      const issues: string[] = [];
-      let status: ComparisonResult['status'] = 'Matched';
+    let newPage: PageData | null = null;
 
-      if (!newPage || newPage.status === 404) {
-        status = 'Missing'; 
-        issues.push('URL missing on new site');
-      } else {
-         // Status Check
-         // If axios returns 200, it means it successfully reached a page (possibly via redirects).
-         // If it returns 3xx, it means it stopped at a redirect (shouldn't happen with default axios config unless loop).
-         // If it returns 4xx/5xx, it's an error.
-         
-         if (newPage.status >= 300 && newPage.status < 400) {
-               status = 'Error'; 
-               issues.push(`Redirected (Status ${newPage.status})`);
-         } else if (newPage.status !== 200) {
-              status = 'Error';
-              issues.push(`New site returns status ${newPage.status}`);
-         }
+    // Try fetch
+    try {
+      const fetched = await this.crawler.fetchPage(expectedNewUrl);
+      newPage = fetched;
+    } catch (e) {}
 
-        // Meta Checks
-        // Only compare if status is OK (200)
-        // Refined Logic: Only flag if Old Site HAS data but New Site is MISSING it or DIFFERENT.
-        // If Old Site is empty, we don't care if New Site is also empty (or has data, which is an improvement).
-        
-        if (newPage.status === 200) {
-            // Check for potential redirect mismatch
-            const finalPath = new URL(newPage.url).pathname.replace(/\/$/, '');
-            const expectedPath = new URL(expectedNewUrl).pathname.replace(/\/$/, '');
-            
-            if (finalPath !== expectedPath) {
-                 // It redirected. This is acceptable (Success), but we should note it.
-                 // We do NOT set status to 'Error'.
-                 issues.push(`Redirected to ${finalPath}`);
-            }
+    const issues: string[] = [];
+    let status: ComparisonResult['status'] = 'Matched';
 
-            // Helper to clean strings for comparison
-            const clean = (str: string | undefined | null) => (str || '').trim();
+    if (!newPage || newPage.status === 404) {
+      status = 'Missing';
+      issues.push('URL missing on new site');
+    } else {
+      // Status Check
+      // If axios returns 200, it means it successfully reached a page (possibly via redirects).
+      // If it returns 3xx, it means it stopped at a redirect (shouldn't happen with default axios config unless loop).
+      // If it returns 4xx/5xx, it's an error.
 
-            const oldTitle = clean(oldPage.title);
-            const newTitle = clean(newPage.title);
-            const oldDesc = clean(oldPage.description);
-            const newDesc = clean(newPage.description);
-            const oldKeywords = clean(oldPage.keywords);
-            const newKeywords = clean(newPage.keywords);
-            const oldOgTitle = clean(oldPage.ogTitle);
-            const newOgTitle = clean(newPage.ogTitle);
-            const oldOgDesc = clean(oldPage.ogDescription);
-            const newOgDesc = clean(newPage.ogDescription);
-            const oldOgImage = clean(oldPage.ogImage);
-            const newOgImage = clean(newPage.ogImage);
-            const oldSchemas = (oldPage.schemas || []).sort();
-            const newSchemas = (newPage.schemas || []).sort();
-            const oldH1 = clean(oldPage.h1);
-            const newH1 = clean(newPage.h1);
-
-            if (oldTitle && oldTitle !== newTitle) issues.push('Title mismatch');
-            if (oldDesc && oldDesc !== newDesc) issues.push('Description mismatch');
-            if (oldKeywords && oldKeywords !== newKeywords) issues.push('Keywords mismatch');
-
-            if (oldOgTitle && oldOgTitle !== newOgTitle) issues.push('OG Title mismatch');
-            if (oldOgDesc && oldOgDesc !== newOgDesc) issues.push('OG Description mismatch');
-            // OG Image: Only check if missing. Path differences are expected (e.g., CDN or domain change)
-            // if (oldOgImage && oldOgImage !== newOgImage) issues.push('OG Image mismatch');
-            
-            // Schema Checks
-            if (JSON.stringify(oldSchemas) !== JSON.stringify(newSchemas)) {
-                const missing = oldSchemas.filter(s => !newSchemas.includes(s));
-                if (missing.length > 0) {
-                    issues.push(`Missing Schema: ${missing.join(', ')}`);
-                } else {
-                    issues.push('Schema mismatch');
-                }
-            }
-
-            if (oldH1 && oldH1 !== newH1) issues.push('H1 mismatch');
-            
-            if (oldPage.canonical && oldPage.canonical !== newPage.canonical) {
-                 try {
-                     const oldCan = new URL(oldPage.canonical);
-                     const newCan = new URL(newPage.canonical);
-                     if (oldCan.pathname !== newCan.pathname) {
-                         issues.push('Canonical path mismatch');
-                     }
-                 } catch(e) {
-                     // If URL parsing fails but strings differ
-                     if (oldPage.canonical !== newPage.canonical) issues.push('Canonical mismatch');
-                 }
-            }
-            
-            if (newPage.robots.includes('noindex')) issues.push('New page has noindex');
-            
-            if (oldTitle && !newTitle) issues.push('Missing Title on New');
-            if (oldDesc && !newDesc) issues.push('Missing Description on New');
-            if (oldKeywords && !newKeywords) issues.push('Missing Keywords on New');
-            if (oldOgTitle && !newOgTitle) issues.push('Missing OG Title on New');
-            if (oldOgDesc && !newOgDesc) issues.push('Missing OG Description on New');
-            if (oldOgImage && !newOgImage) issues.push('Missing OG Image on New');
-            if (oldH1 && !newH1) issues.push('Missing H1 on New');
-        }
+      if (newPage.status >= 300 && newPage.status < 400) {
+        status = 'Error';
+        issues.push(`Redirected (Status ${newPage.status})`);
+      } else if (newPage.status !== 200) {
+        status = 'Error';
+        issues.push(`New site returns status ${newPage.status}`);
       }
 
-      return {
-          oldUrl: oldPage.url,
-          newUrl: expectedNewUrl,
-          status,
-          oldData: oldPage,
-          newData: newPage || null,
-          issues
-      };
+      // Meta Checks
+      // Only compare if status is OK (200)
+      // Refined Logic: Only flag if Old Site HAS data but New Site is MISSING it or DIFFERENT.
+      // If Old Site is empty, we don't care if New Site is also empty (or has data, which is an improvement).
+
+      if (newPage.status === 200) {
+        // Check for potential redirect mismatch
+        const finalPath = new URL(newPage.url).pathname.replace(/\/$/, '');
+        const expectedPath = new URL(expectedNewUrl).pathname.replace(
+          /\/$/,
+          '',
+        );
+
+        if (finalPath !== expectedPath) {
+          // It redirected. This is acceptable (Success), but we should note it.
+          // We do NOT set status to 'Error'.
+          issues.push(`Redirected to ${finalPath}`);
+        }
+
+        // Helper to clean strings for comparison
+        const clean = (str: string | undefined | null) => (str || '').trim();
+
+        const oldTitle = clean(oldPage.title);
+        const newTitle = clean(newPage.title);
+        const oldDesc = clean(oldPage.description);
+        const newDesc = clean(newPage.description);
+        const oldKeywords = clean(oldPage.keywords);
+        const newKeywords = clean(newPage.keywords);
+        const oldOgTitle = clean(oldPage.ogTitle);
+        const newOgTitle = clean(newPage.ogTitle);
+        const oldOgDesc = clean(oldPage.ogDescription);
+        const newOgDesc = clean(newPage.ogDescription);
+        const oldOgImage = clean(oldPage.ogImage);
+        const newOgImage = clean(newPage.ogImage);
+        const oldSchemas = (oldPage.schemas || []).sort();
+        const newSchemas = (newPage.schemas || []).sort();
+        const oldH1 = clean(oldPage.h1);
+        const newH1 = clean(newPage.h1);
+
+        if (oldTitle && oldTitle !== newTitle) issues.push('Title mismatch');
+        if (oldDesc && oldDesc !== newDesc) issues.push('Description mismatch');
+        if (oldKeywords && oldKeywords !== newKeywords)
+          issues.push('Keywords mismatch');
+
+        if (oldOgTitle && oldOgTitle !== newOgTitle)
+          issues.push('OG Title mismatch');
+        if (oldOgDesc && oldOgDesc !== newOgDesc)
+          issues.push('OG Description mismatch');
+        // OG Image: Only check if missing. Path differences are expected (e.g., CDN or domain change)
+        // if (oldOgImage && oldOgImage !== newOgImage) issues.push('OG Image mismatch');
+
+        // Schema Checks
+        if (JSON.stringify(oldSchemas) !== JSON.stringify(newSchemas)) {
+          const missing = oldSchemas.filter((s) => !newSchemas.includes(s));
+          if (missing.length > 0) {
+            issues.push(`Missing Schema: ${missing.join(', ')}`);
+          } else {
+            issues.push('Schema mismatch');
+          }
+        }
+
+        if (oldH1 && oldH1 !== newH1) issues.push('H1 mismatch');
+
+        if (oldPage.canonical && oldPage.canonical !== newPage.canonical) {
+          try {
+            const oldCan = new URL(oldPage.canonical);
+            const newCan = new URL(newPage.canonical);
+            if (oldCan.pathname !== newCan.pathname) {
+              issues.push('Canonical path mismatch');
+            }
+          } catch (e) {
+            // If URL parsing fails but strings differ
+            if (oldPage.canonical !== newPage.canonical)
+              issues.push('Canonical mismatch');
+          }
+        }
+
+        if (newPage.robots.includes('noindex'))
+          issues.push('New page has noindex');
+
+        if (oldTitle && !newTitle) issues.push('Missing Title on New');
+        if (oldDesc && !newDesc) issues.push('Missing Description on New');
+        if (oldKeywords && !newKeywords) issues.push('Missing Keywords on New');
+        if (oldOgTitle && !newOgTitle) issues.push('Missing OG Title on New');
+        if (oldOgDesc && !newOgDesc)
+          issues.push('Missing OG Description on New');
+        if (oldOgImage && !newOgImage) issues.push('Missing OG Image on New');
+        if (oldH1 && !newH1) issues.push('Missing H1 on New');
+      }
+    }
+
+    return {
+      oldUrl: oldPage.url,
+      newUrl: expectedNewUrl,
+      status,
+      oldData: oldPage,
+      newData: newPage || null,
+      issues,
+    };
   }
 
   async runComparison(id: string): Promise<ProjectReport> {
     const project = await this.getProject(id);
-    
+
     // Check Redis cache by URL Key (preferred) or ID
     const urlKey = this.getUrlCacheKey(project.oldSiteUrl, project.newSiteUrl);
     let cached = await this.redis.get(urlKey);
-    
+
     if (!cached) {
-        // Fallback to ID-based cache
-        cached = await this.redis.get(`report:${id}`);
+      // Fallback to ID-based cache
+      cached = await this.redis.get(`report:${id}`);
     }
 
     if (cached) {
-        console.log(`[runComparison] Cache hit for project ${id}`);
-        return JSON.parse(cached);
+      console.log(`[runComparison] Cache hit for project ${id}`);
+      return JSON.parse(cached);
     }
-    console.log(`[runComparison] Cache miss for project ${id}, starting new crawl`);
+    console.log(
+      `[runComparison] Cache miss for project ${id}, starting new crawl`,
+    );
 
     // Use the streaming logic but accumulate results
     const results: ComparisonResult[] = [];
-    
-    return new Promise((resolve, reject) => {
-        const subject = new Subject<MessageEvent>();
-        this.runComparisonStreaming(id, subject);
-        
-        const oldUrls = new Set<string>();
-        const newUrls = new Set<string>();
 
-        subject.subscribe({
-            next: (msg) => {
-                if (msg.data.type === 'result') {
-                    const r = msg.data.result as ComparisonResult;
-                    results.push(r);
-                    if (r.oldUrl) oldUrls.add(r.oldUrl);
-                    if (r.newUrl) newUrls.add(r.newUrl);
-                } else if (msg.data.type === 'error') {
-                    reject(new Error(msg.data.message));
-                } else if (msg.data.type === 'complete') {
-                    const metaIssuesCount = results.filter(r => r.status === 'Matched' && r.issues.length > 0).length;
-                    
-                    resolve({
-                        project,
-                        summary: {
-                            totalOld: oldUrls.size,
-                            totalNew: newUrls.size,
-                            missing: results.filter(r => r.status === 'Missing').length,
-                            newPages: 0,
-                            metaIssues: metaIssuesCount
-                        },
-                        results
-                    });
-                }
-            },
-            error: (err) => reject(err)
-        });
+    return new Promise((resolve, reject) => {
+      const subject = new Subject<MessageEvent>();
+      this.runComparisonStreaming(id, subject);
+
+      const oldUrls = new Set<string>();
+      const newUrls = new Set<string>();
+
+      subject.subscribe({
+        next: (msg) => {
+          if (msg.data.type === 'result') {
+            const r = msg.data.result as ComparisonResult;
+            results.push(r);
+            if (r.oldUrl) oldUrls.add(r.oldUrl);
+            if (r.newUrl) newUrls.add(r.newUrl);
+          } else if (msg.data.type === 'error') {
+            reject(new Error(msg.data.message));
+          } else if (msg.data.type === 'complete') {
+            const metaIssuesCount = results.filter(
+              (r) => r.status === 'Matched' && r.issues.length > 0,
+            ).length;
+
+            resolve({
+              project,
+              summary: {
+                totalOld: oldUrls.size,
+                totalNew: newUrls.size,
+                missing: results.filter((r) => r.status === 'Missing').length,
+                newPages: 0,
+                metaIssues: metaIssuesCount,
+              },
+              results,
+            });
+          }
+        },
+        error: (err) => reject(err),
+      });
     });
   }
 
@@ -556,21 +677,23 @@ export class ProjectsService {
     // Filter Logic
     let filteredResults = report.results;
     if (filter && filter !== 'all') {
-        filteredResults = report.results.filter(r => {
-            if (filter === 'Missing') return r.status === 'Missing' || r.status === 'Error';
-            if (filter === 'Meta') return r.status === 'Matched' && r.issues.length > 0;
-            return true;
-        });
+      filteredResults = report.results.filter((r) => {
+        if (filter === 'Missing')
+          return r.status === 'Missing' || r.status === 'Error';
+        if (filter === 'Meta')
+          return r.status === 'Matched' && r.issues.length > 0;
+        return true;
+      });
     }
 
     // Single Sheet: "Crawl Report"
     // Columns: Old Url, New Url, Status, Issues
-    const reportData = filteredResults.map(r => ({
+    const reportData = filteredResults.map((r) => ({
       'Old Url': r.oldUrl || '-',
       'New Url': r.newUrl || '-',
-      'Status': r.status,
+      Status: r.status,
       'Issues Found': r.issues.length > 0 ? r.issues.join(', ') : 'No Issues',
-      
+
       // Meta Title
       'Old Title': r.oldData?.title || '-',
       'New Title': r.newData?.title || '-',
@@ -579,7 +702,8 @@ export class ProjectsService {
       // Meta Description
       'Old Description': r.oldData?.description || '-',
       'New Description': r.newData?.description || '-',
-      'Description Match': r.oldData?.description === r.newData?.description ? '✅' : '❌',
+      'Description Match':
+        r.oldData?.description === r.newData?.description ? '✅' : '❌',
 
       // H1
       'Old H1': r.oldData?.h1 || '-',
@@ -589,12 +713,14 @@ export class ProjectsService {
       // Keywords
       'Old Keywords': r.oldData?.keywords || '-',
       'New Keywords': r.newData?.keywords || '-',
-      'Keywords Match': r.oldData?.keywords === r.newData?.keywords ? '✅' : '❌',
+      'Keywords Match':
+        r.oldData?.keywords === r.newData?.keywords ? '✅' : '❌',
 
       // Canonical
       'Old Canonical': r.oldData?.canonical || '-',
       'New Canonical': r.newData?.canonical || '-',
-      'Canonical Match': r.oldData?.canonical === r.newData?.canonical ? '✅' : '❌',
+      'Canonical Match':
+        r.oldData?.canonical === r.newData?.canonical ? '✅' : '❌',
 
       // Open Graph
       'Old OG Title': r.oldData?.ogTitle || '-',
@@ -603,7 +729,8 @@ export class ProjectsService {
 
       'Old OG Desc': r.oldData?.ogDescription || '-',
       'New OG Desc': r.newData?.ogDescription || '-',
-      'OG Desc Match': r.oldData?.ogDescription === r.newData?.ogDescription ? '✅' : '❌',
+      'OG Desc Match':
+        r.oldData?.ogDescription === r.newData?.ogDescription ? '✅' : '❌',
 
       'Old OG Image': r.oldData?.ogImage || '-',
       'New OG Image': r.newData?.ogImage || '-',
@@ -612,40 +739,319 @@ export class ProjectsService {
       // Schemas
       'Old Schemas': r.oldData?.schemas?.join(', ') || '-',
       'New Schemas': r.newData?.schemas?.join(', ') || '-',
-      'Schemas Match': JSON.stringify((r.oldData?.schemas || []).sort()) === JSON.stringify((r.newData?.schemas || []).sort()) ? '✅' : '❌',
+      'Schemas Match':
+        JSON.stringify((r.oldData?.schemas || []).sort()) ===
+        JSON.stringify((r.newData?.schemas || []).sort())
+          ? '✅'
+          : '❌',
     }));
 
     const ws = XLSX.utils.json_to_sheet(reportData);
-    
+
     // Auto-width for better readability (approximate)
     const wscols = [
-        { wch: 60 }, // Old Url
-        { wch: 60 }, // New Url
-        { wch: 15 }, // Status
-        { wch: 50 }, // Issues Found
-        
-        { wch: 40 }, // Old Title
-        { wch: 40 }, // New Title
-        { wch: 10 }, // Title Match
+      { wch: 60 }, // Old Url
+      { wch: 60 }, // New Url
+      { wch: 15 }, // Status
+      { wch: 50 }, // Issues Found
 
-        { wch: 40 }, // Old Desc
-        { wch: 40 }, // New Desc
-        { wch: 10 }, // Desc Match
+      { wch: 40 }, // Old Title
+      { wch: 40 }, // New Title
+      { wch: 10 }, // Title Match
 
-        { wch: 30 }, // Old H1
-        { wch: 30 }, // New H1
-        { wch: 10 }, // H1 Match
-        
-        { wch: 25 }, // Old Keywords
-        { wch: 25 }, // New Keywords
-        
-        { wch: 40 }, // Old Canonical
-        { wch: 40 }, // New Canonical
+      { wch: 40 }, // Old Desc
+      { wch: 40 }, // New Desc
+      { wch: 10 }, // Desc Match
+
+      { wch: 30 }, // Old H1
+      { wch: 30 }, // New H1
+      { wch: 10 }, // H1 Match
+
+      { wch: 25 }, // Old Keywords
+      { wch: 25 }, // New Keywords
+
+      { wch: 40 }, // Old Canonical
+      { wch: 40 }, // New Canonical
     ];
     ws['!cols'] = wscols;
 
-    XLSX.utils.book_append_sheet(wb, ws, "Crawl Report");
+    XLSX.utils.book_append_sheet(wb, ws, 'Crawl Report');
 
     return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+  async streamComparisonWithCallback(
+    id: string,
+    callback: (message: { type: string; [key: string]: any }) => void,
+  ): Promise<void> {
+    this.logger.log(`Starting stream comparison for project: ${id}`);
+
+    try {
+      const project = await this.getProject(id);
+
+      this.activeCrawls.set(id, true);
+
+      const oldSiteData = new Map<string, PageData>();
+      const newSiteData = new Map<string, PageData>();
+      const processedOldUrls = new Set<string>();
+
+      const results: ComparisonResult[] = [];
+      const oldUrlsFound = new Set<string>();
+      const newUrlsFound = new Set<string>();
+
+      const isCancelled = () => this.activeCrawls.get(id) === false;
+
+      let sitemapUrls: string[] = [];
+      let nestedSitemaps: string[] = [];
+
+      try {
+        const userSitemap = project.sitemapUrl?.trim();
+        let targetSitemap = '';
+        if (userSitemap) {
+          targetSitemap = userSitemap;
+        }
+
+        this.logger.log(`Fetching sitemap: ${targetSitemap}`);
+        const sitemapData =
+          await this.crawler.fetchSitemapContent(targetSitemap);
+        sitemapUrls = sitemapData.urls;
+        nestedSitemaps = sitemapData.nestedSitemaps;
+        this.logger.log(
+          `Sitemap fetched: ${sitemapUrls.length} URLs, ${nestedSitemaps.length} nested sitemaps`,
+        );
+      } catch (e) {
+        this.logger.warn(`Sitemap fetch failed: ${e.message}`);
+      }
+
+      const useSitemapStrategy =
+        sitemapUrls.length > 0 || nestedSitemaps.length > 0;
+      const startUrls = useSitemapStrategy ? sitemapUrls : [project.oldSiteUrl];
+
+      this.logger.log(
+        `Using strategy: ${useSitemapStrategy ? 'sitemap-based' : 'recursive crawl'}`,
+      );
+
+      const crawlPromises = [
+        (async () => {
+          if (useSitemapStrategy) {
+            this.logger.log(`Processing ${sitemapUrls.length} sitemap URLs`);
+
+            await this.processUrlBatchStreaming(
+              sitemapUrls,
+              id,
+              oldSiteData,
+              processedOldUrls,
+              newSiteData,
+              results,
+              oldUrlsFound,
+              newUrlsFound,
+              callback,
+              project,
+              isCancelled,
+            );
+
+            for (const nestedSitemapUrl of nestedSitemaps) {
+              if (isCancelled()) break;
+              this.logger.log(`Processing nested sitemap: ${nestedSitemapUrl}`);
+
+              const childData =
+                await this.crawler.fetchSitemapContent(nestedSitemapUrl);
+              if (childData.nestedSitemaps.length > 0) {
+                nestedSitemaps.push(...childData.nestedSitemaps);
+              }
+
+              await this.processUrlBatchStreaming(
+                childData.urls,
+                id,
+                oldSiteData,
+                processedOldUrls,
+                newSiteData,
+                results,
+                oldUrlsFound,
+                newUrlsFound,
+                callback,
+                project,
+                isCancelled,
+              );
+            }
+          } else {
+            this.logger.log(`Starting recursive crawl from: ${startUrls[0]}`);
+            await this.crawler.crawlSite(
+              startUrls[0],
+              10000,
+              async (oldPage) => {
+                if (isCancelled()) return;
+                await this.processSinglePageStreaming(
+                  oldPage,
+                  id,
+                  oldSiteData,
+                  processedOldUrls,
+                  newSiteData,
+                  results,
+                  oldUrlsFound,
+                  newUrlsFound,
+                  callback,
+                  project,
+                  isCancelled,
+                );
+              },
+              isCancelled,
+              10,
+            );
+          }
+        })(),
+
+        this.crawler.crawlSite(
+          project.newSiteUrl,
+          10000,
+          (newPage) => {
+            if (isCancelled()) return;
+            newSiteData.set(newPage.url, newPage);
+          },
+          isCancelled,
+          10,
+        ),
+      ];
+
+      await Promise.all(crawlPromises);
+
+      if (isCancelled()) {
+        this.logger.log(`Crawl for ${id} was cancelled`);
+        return;
+      }
+
+      const metaIssuesCount = results.filter(
+        (r) => r.status === 'Matched' && r.issues.length > 0,
+      ).length;
+      const report: ProjectReport = {
+        project,
+        summary: {
+          totalOld: oldUrlsFound.size,
+          totalNew: newUrlsFound.size,
+          missing: results.filter((r) => r.status === 'Missing').length,
+          newPages: 0,
+          metaIssues: metaIssuesCount,
+        },
+        results,
+      };
+
+      this.logger.log(`Saving report to Redis for project ${id} (TTL: 3600s)`);
+      await this.redis.set(`report:${id}`, JSON.stringify(report), 3600);
+
+      const urlKey = this.getUrlCacheKey(
+        project.oldSiteUrl,
+        project.newSiteUrl,
+      );
+      await this.redis.set(urlKey, JSON.stringify(report), 3600);
+
+      this.logger.log(
+        `Stream comparison completed for project: ${id}, total results: ${results.length}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Stream comparison error for project ${id}: ${error.message}`,
+        error.stack,
+      );
+      callback({ type: 'error', message: error.message });
+    } finally {
+      this.activeCrawls.delete(id);
+    }
+  }
+
+  private async processUrlBatchStreaming(
+    urls: string[],
+    id: string,
+    oldSiteData: Map<string, PageData>,
+    processedOldUrls: Set<string>,
+    newSiteData: Map<string, PageData>,
+    results: ComparisonResult[],
+    oldUrlsFound: Set<string>,
+    newUrlsFound: Set<string>,
+    callback: (message: { type: string; [key: string]: any }) => void,
+    project: Project,
+    isCancelled: () => boolean,
+  ) {
+    if (urls.length === 0) return;
+
+    this.logger.log(`Starting batch processing of ${urls.length} URLs`);
+
+    const concurrency = 10;
+    const queue = [...urls];
+    const activePromises = new Set<Promise<void>>();
+
+    while (queue.length > 0 || activePromises.size > 0) {
+      if (isCancelled()) break;
+
+      while (queue.length > 0 && activePromises.size < concurrency) {
+        const url = queue.shift();
+        if (!url) continue;
+
+        const promise = (async () => {
+          try {
+            const oldPage = await this.crawler.fetchPage(url);
+            await this.processSinglePageStreaming(
+              oldPage,
+              id,
+              oldSiteData,
+              processedOldUrls,
+              newSiteData,
+              results,
+              oldUrlsFound,
+              newUrlsFound,
+              callback,
+              project,
+              isCancelled,
+            );
+          } catch (e) {
+            this.logger.error(
+              `Error processing sitemap URL ${url}: ${e.message}`,
+            );
+          }
+        })();
+
+        activePromises.add(promise);
+        promise.finally(() => {
+          activePromises.delete(promise);
+          if (results.length % 10 === 0) {
+            this.logger.log(`[Progress] Processed ${results.length} pages...`);
+          }
+        });
+      }
+
+      if (activePromises.size > 0) {
+        await Promise.race(activePromises);
+      }
+    }
+    this.logger.log(`Completed batch processing of ${urls.length} URLs`);
+  }
+
+  private async processSinglePageStreaming(
+    oldPage: PageData,
+    id: string,
+    oldSiteData: Map<string, PageData>,
+    processedOldUrls: Set<string>,
+    newSiteData: Map<string, PageData>,
+    results: ComparisonResult[],
+    oldUrlsFound: Set<string>,
+    newUrlsFound: Set<string>,
+    callback: (message: { type: string; [key: string]: any }) => void,
+    project: Project,
+    isCancelled: () => boolean,
+  ) {
+    if (isCancelled()) return;
+
+    oldSiteData.set(oldPage.url, oldPage);
+    processedOldUrls.add(oldPage.url);
+
+    const result = await this.checkSinglePage(oldPage, project.newSiteUrl);
+    if (result.newData && result.newUrl)
+      newSiteData.set(result.newUrl, result.newData);
+
+    if (!isCancelled()) {
+      results.push(result);
+      if (result.oldUrl) oldUrlsFound.add(result.oldUrl);
+      if (result.newUrl) newUrlsFound.add(result.newUrl);
+      callback({ type: 'result', result });
+    }
   }
 }

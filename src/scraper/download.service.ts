@@ -26,7 +26,8 @@ export class DownloadService {
       try {
         let decodedUrl = decodeURIComponent(url);
         const urlParams = new URLSearchParams(decodedUrl);
-        if (urlParams.has('url')) decodedUrl = decodeURIComponent(urlParams.get('url')!);
+        if (urlParams.has('url'))
+          decodedUrl = decodeURIComponent(urlParams.get('url')!);
         return new URL(decodedUrl, baseUrl).href;
       } catch {
         return null;
@@ -41,7 +42,7 @@ export class DownloadService {
       const uploadsDir = dirPath || path.join(process.cwd(), 'uploads');
       if (!fs.existsSync(uploadsDir)) return;
       const files = fs.readdirSync(uploadsDir);
-      files.forEach(file => {
+      files.forEach((file) => {
         const filePath = path.join(uploadsDir, file);
         try {
           if (fs.lstatSync(filePath).isDirectory()) {
@@ -58,7 +59,9 @@ export class DownloadService {
         fs.mkdirSync(uploadsDir);
       }
     } catch (error) {
-      this.logger.error(`Error cleaning up uploads directory: ${error.message}`);
+      this.logger.error(
+        `Error cleaning up uploads directory: ${error.message}`,
+      );
     }
   }
 
@@ -76,7 +79,10 @@ export class DownloadService {
       if (scrapeScope === 'single' && data.error) throw new Error(data.error);
       if (scrapeScope !== 'single' && data.pages) {
         const allErrors = data.pages.every((page: any) => page.error);
-        if (allErrors) throw new Error('Failed to scrape any valid content from the website');
+        if (allErrors)
+          throw new Error(
+            'Failed to scrape any valid content from the website',
+          );
       }
 
       this.ensureDirectoryExists(uploadsDir);
@@ -93,7 +99,8 @@ export class DownloadService {
             if (page.meta) {
               page.meta.forEach((meta: any) => {
                 if (meta.name) metaHeaders.add(`meta_${meta.name}`);
-                if (meta.property) metaHeaders.add(`og_${meta.property.replace('og:', '')}`);
+                if (meta.property)
+                  metaHeaders.add(`og_${meta.property.replace('og:', '')}`);
               });
             }
           });
@@ -102,51 +109,92 @@ export class DownloadService {
             if (page.meta) {
               page.meta.forEach((meta: any) => {
                 if (meta.name) row[`meta_${meta.name}`] = meta.content;
-                if (meta.property) row[`og_${meta.property.replace('og:', '')}`] = meta.content;
+                if (meta.property)
+                  row[`og_${meta.property.replace('og:', '')}`] = meta.content;
               });
             }
             return row;
           });
-          const metaSheet = XLSX.utils.json_to_sheet(metaData, { header: Array.from(metaHeaders) as string[] });
+          const metaSheet = XLSX.utils.json_to_sheet(metaData, {
+            header: Array.from(metaHeaders),
+          });
           XLSX.utils.book_append_sheet(workbook, metaSheet, 'Meta');
         }
 
         if (contentType === 'all' || contentType === 'images') {
           const imageData = pages.flatMap((page: any) =>
-            (page.images || []).map((img: string) => ({ pageUrl: page.url, imageUrl: img })),
+            (page.images || []).map((img: string) => ({
+              pageUrl: page.url,
+              imageUrl: img,
+            })),
           );
-          XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(imageData), 'Images');
+          XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.json_to_sheet(imageData),
+            'Images',
+          );
         }
 
         if (contentType === 'all' || contentType === 'videos') {
           const videoData = pages.flatMap((page: any) =>
-            (page.videos || []).map((video: string) => ({ pageUrl: page.url, videoUrl: video })),
+            (page.videos || []).map((video: string) => ({
+              pageUrl: page.url,
+              videoUrl: video,
+            })),
           );
-          XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(videoData), 'Videos');
+          XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.json_to_sheet(videoData),
+            'Videos',
+          );
         }
 
         if (contentType === 'all' || contentType === 'documents') {
           const docData = pages.flatMap((page: any) =>
-            (page.documents || []).map((doc: string) => ({ pageUrl: page.url, documentUrl: doc })),
+            (page.documents || []).map((doc: string) => ({
+              pageUrl: page.url,
+              documentUrl: doc,
+            })),
           );
-          XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(docData), 'Documents');
+          XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.json_to_sheet(docData),
+            'Documents',
+          );
         }
 
         if (contentType === 'all' || contentType === 'social') {
           const socialData = pages.flatMap((page: any) =>
             (page.socialMedia || []).map((social: string) => {
-              const platform = social.includes('facebook.com') ? 'Facebook' :
-                social.includes('twitter.com') || social.includes('x.com') ? 'Twitter' :
-                social.includes('instagram.com') ? 'Instagram' :
-                social.includes('linkedin.com') ? 'LinkedIn' :
-                social.includes('youtube.com') ? 'YouTube' :
-                social.includes('pinterest.com') ? 'Pinterest' :
-                social.includes('tiktok.com') ? 'TikTok' :
-                social.includes('github') ? 'GitHub' : 'Other';
-              return { 'Source Page': page.url, 'Platform': platform, 'Social Media URL': social };
+              const platform = social.includes('facebook.com')
+                ? 'Facebook'
+                : social.includes('twitter.com') || social.includes('x.com')
+                  ? 'Twitter'
+                  : social.includes('instagram.com')
+                    ? 'Instagram'
+                    : social.includes('linkedin.com')
+                      ? 'LinkedIn'
+                      : social.includes('youtube.com')
+                        ? 'YouTube'
+                        : social.includes('pinterest.com')
+                          ? 'Pinterest'
+                          : social.includes('tiktok.com')
+                            ? 'TikTok'
+                            : social.includes('github')
+                              ? 'GitHub'
+                              : 'Other';
+              return {
+                'Source Page': page.url,
+                Platform: platform,
+                'Social Media URL': social,
+              };
             }),
           );
-          XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(socialData), 'Social Media');
+          XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.json_to_sheet(socialData),
+            'Social Media',
+          );
         }
 
         if (contentType === 'all' || contentType === 'links') {
@@ -157,12 +205,23 @@ export class DownloadService {
               'Link Type': link.startsWith('http') ? 'External' : 'Internal',
             })),
           );
-          XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(linkData), 'Links');
+          XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.json_to_sheet(linkData),
+            'Links',
+          );
         }
 
         if (contentType === 'all' || contentType === 'contact') {
-          const contactData = pages.map((page: any) => ({ pageUrl: page.url, ...page.contacts }));
-          XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(contactData), 'Contacts');
+          const contactData = pages.map((page: any) => ({
+            pageUrl: page.url,
+            ...page.contacts,
+          }));
+          XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.json_to_sheet(contactData),
+            'Contacts',
+          );
         }
 
         const excelPath = path.join(uploadsDir, 'scraped_data.xlsx');
@@ -183,7 +242,9 @@ export class DownloadService {
       const zipPath = path.join(uploadsDir, 'scraped_data.zip');
       const output = fs.createWriteStream(zipPath);
 
-      archive.on('error', (err: Error) => { throw err; });
+      archive.on('error', (err: Error) => {
+        throw err;
+      });
       archive.pipe(output);
 
       for (let i = 0; i < pages.length; i++) {
@@ -199,10 +260,17 @@ export class DownloadService {
           failedImageDownloads: [],
         };
 
-        if (contentType === 'all' || contentType === 'meta') metadata.meta = page.meta;
+        if (contentType === 'all' || contentType === 'meta')
+          metadata.meta = page.meta;
 
-        if ((contentType === 'all' || contentType === 'images') && page.images?.length > 0) {
-          const pageDir = path.join(uploadsDir, new URL(page.url).hostname.replace(/[^a-zA-Z0-9]/g, '_'));
+        if (
+          (contentType === 'all' || contentType === 'images') &&
+          page.images?.length > 0
+        ) {
+          const pageDir = path.join(
+            uploadsDir,
+            new URL(page.url).hostname.replace(/[^a-zA-Z0-9]/g, '_'),
+          );
           this.ensureDirectoryExists(pageDir);
           metadata.images = [];
 
@@ -210,19 +278,31 @@ export class DownloadService {
             try {
               const resolvedUrl = this.resolveImageUrl(imageUrl, page.url);
               if (!resolvedUrl) {
-                metadata.failedImageDownloads.push({ url: imageUrl, error: 'Invalid URL format' });
+                metadata.failedImageDownloads.push({
+                  url: imageUrl,
+                  error: 'Invalid URL format',
+                });
                 continue;
               }
-              const response = await axios({ method: 'get', url: resolvedUrl, responseType: 'stream' });
+              const response = await axios({
+                method: 'get',
+                url: resolvedUrl,
+                responseType: 'stream',
+              });
               let fileName = path.basename(resolvedUrl);
-              const extMatch = fileName.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)($|\?|#)/i);
+              const extMatch = fileName.match(
+                /\.(jpg|jpeg|png|gif|bmp|webp|svg)($|\?|#)/i,
+              );
               const ext = extMatch ? extMatch[1].toLowerCase() : 'jpg';
               fileName = fileName.split('.')[0] + '.' + ext;
 
               let uniqueFileName = fileName;
               let counter = 1;
               while (fs.existsSync(path.join(pageDir, uniqueFileName))) {
-                const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+                const nameWithoutExt = fileName.substring(
+                  0,
+                  fileName.lastIndexOf('.'),
+                );
                 uniqueFileName = `${nameWithoutExt}_${counter}.${ext}`;
                 counter++;
               }
@@ -233,26 +313,43 @@ export class DownloadService {
                 fileStream.on('finish', resolve);
                 fileStream.on('error', reject);
               });
-              archive.file(filePath, { name: `${new URL(page.url).hostname}/${fileName}` });
+              archive.file(filePath, {
+                name: `${new URL(page.url).hostname}/${fileName}`,
+              });
               metadata.images.push({ url: resolvedUrl, fileName });
             } catch (error) {
-              metadata.failedImageDownloads.push({ url: imageUrl, error: error.message });
+              metadata.failedImageDownloads.push({
+                url: imageUrl,
+                error: error.message,
+              });
             }
           }
         }
 
-        if ((contentType === 'all' || contentType === 'videos') && page.videos) metadata.videos = page.videos;
-        if ((contentType === 'all' || contentType === 'documents') && page.documents) metadata.documents = page.documents;
-        if ((contentType === 'all' || contentType === 'social') && page.socialMedia) metadata.socialMedia = page.socialMedia;
-        if ((contentType === 'all' || contentType === 'links') && page.links) metadata.links = page.links;
-        if (contentType === 'all' && page.contacts) metadata.contacts = page.contacts;
+        if ((contentType === 'all' || contentType === 'videos') && page.videos)
+          metadata.videos = page.videos;
+        if (
+          (contentType === 'all' || contentType === 'documents') &&
+          page.documents
+        )
+          metadata.documents = page.documents;
+        if (
+          (contentType === 'all' || contentType === 'social') &&
+          page.socialMedia
+        )
+          metadata.socialMedia = page.socialMedia;
+        if ((contentType === 'all' || contentType === 'links') && page.links)
+          metadata.links = page.links;
+        if (contentType === 'all' && page.contacts)
+          metadata.contacts = page.contacts;
 
         processedData.push(metadata);
       }
 
       const metadataContent = JSON.stringify(
         scrapeScope === 'single' ? processedData[0] : { pages: processedData },
-        null, 2,
+        null,
+        2,
       );
       archive.append(metadataContent, { name: 'metadata.json' });
 
@@ -273,17 +370,21 @@ export class DownloadService {
     }
   }
 
-  async downloadMedia(mediaFiles: { type: string; url: string; pageUrl: string }[]): Promise<{ filePath: string; fileName: string; cleanup: () => void }> {
+  async downloadMedia(
+    mediaFiles: { type: string; url: string; pageUrl: string }[],
+  ): Promise<{ filePath: string; fileName: string; cleanup: () => void }> {
     const sessionId = uuidv4();
     const uploadsDir = path.join(process.cwd(), 'uploads', sessionId);
     const archive = archiver('zip', { zlib: { level: 9 } });
 
     try {
       this.ensureDirectoryExists(uploadsDir);
-      
+
       const zipPath = path.join(uploadsDir, 'media.zip');
       const output = fs.createWriteStream(zipPath);
-      archive.on('error', (err: Error) => { throw err; });
+      archive.on('error', (err: Error) => {
+        throw err;
+      });
       archive.pipe(output);
 
       for (const media of mediaFiles) {
@@ -291,12 +392,15 @@ export class DownloadService {
           const resolvedUrl = this.resolveImageUrl(media.url, media.pageUrl);
           if (!resolvedUrl) continue;
 
-          const pageDir = path.join(uploadsDir, new URL(media.pageUrl).hostname.replace(/[^a-zA-Z0-9]/g, '_'));
+          const pageDir = path.join(
+            uploadsDir,
+            new URL(media.pageUrl).hostname.replace(/[^a-zA-Z0-9]/g, '_'),
+          );
           this.ensureDirectoryExists(pageDir);
 
           let ext = 'bin';
           let folderName = 'other';
-          
+
           if (media.type === 'video') {
             folderName = 'videos';
             if (media.url.includes('.webm')) ext = 'webm';
@@ -306,7 +410,9 @@ export class DownloadService {
             else ext = 'mp4';
           } else if (media.type === 'image') {
             folderName = 'images';
-            const extMatch = media.url.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|avif)($|\?|#)/i);
+            const extMatch = media.url.match(
+              /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|avif)($|\?|#)/i,
+            );
             if (extMatch) ext = extMatch[1].toLowerCase();
             else ext = 'jpg';
           } else if (media.type === 'document' || media.type === 'pdf') {
@@ -331,7 +437,12 @@ export class DownloadService {
           const fileName = `${media.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
           const filePath = path.join(pageDir, fileName);
 
-          const response = await axios({ method: 'get', url: resolvedUrl, responseType: 'stream', timeout: 30000 });
+          const response = await axios({
+            method: 'get',
+            url: resolvedUrl,
+            responseType: 'stream',
+            timeout: 30000,
+          });
           const fileStream = fs.createWriteStream(filePath);
           response.data.pipe(fileStream);
           await new Promise<void>((resolve, reject) => {
@@ -342,7 +453,10 @@ export class DownloadService {
           const archivePath = `${new URL(media.pageUrl).hostname}/${folderName}/${fileName}`;
           archive.file(filePath, { name: archivePath });
         } catch (error) {
-          this.logger.error(`Failed to download media: ${media.url}`, error.message);
+          this.logger.error(
+            `Failed to download media: ${media.url}`,
+            error.message,
+          );
         }
       }
 
@@ -365,7 +479,12 @@ export class DownloadService {
 
   async downloadMediaWithProgress(
     mediaFiles: { type: string; url: string; pageUrl: string }[],
-    onProgress: (progress: { current: number; total: number; fileName: string; percentage: number }) => void,
+    onProgress: (progress: {
+      current: number;
+      total: number;
+      fileName: string;
+      percentage: number;
+    }) => void,
   ): Promise<{ filePath: string; fileName: string; cleanup: () => void }> {
     const sessionId = uuidv4();
     const uploadsDir = path.join(process.cwd(), 'uploads', sessionId);
@@ -377,21 +496,25 @@ export class DownloadService {
 
     try {
       this.ensureDirectoryExists(uploadsDir);
-      
+
       const zipPath = path.join(uploadsDir, 'media.zip');
       const output = fs.createWriteStream(zipPath);
-      archive.on('error', (err: Error) => { throw err; });
+      archive.on('error', (err: Error) => {
+        throw err;
+      });
       archive.pipe(output);
 
       for (let i = 0; i < mediaFiles.length; i++) {
         const media = mediaFiles[i];
         const fileName = media.url.split('/').pop() || 'file';
-        
+
         onProgress({
           current: downloadedCount + failedCount,
           total: totalFiles,
           fileName: fileName,
-          percentage: Math.round(((downloadedCount + failedCount) / totalFiles) * 100)
+          percentage: Math.round(
+            ((downloadedCount + failedCount) / totalFiles) * 100,
+          ),
         });
 
         try {
@@ -401,12 +524,15 @@ export class DownloadService {
             continue;
           }
 
-          const pageDir = path.join(uploadsDir, new URL(media.pageUrl).hostname.replace(/[^a-zA-Z0-9]/g, '_'));
+          const pageDir = path.join(
+            uploadsDir,
+            new URL(media.pageUrl).hostname.replace(/[^a-zA-Z0-9]/g, '_'),
+          );
           this.ensureDirectoryExists(pageDir);
 
           let ext = 'bin';
           let folderName = 'other';
-          
+
           if (media.type === 'video') {
             folderName = 'videos';
             if (media.url.includes('.webm')) ext = 'webm';
@@ -415,7 +541,9 @@ export class DownloadService {
             else ext = 'mp4';
           } else if (media.type === 'image') {
             folderName = 'images';
-            const extMatch = media.url.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|avif)($|\?|#)/i);
+            const extMatch = media.url.match(
+              /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|avif)($|\?|#)/i,
+            );
             if (extMatch) ext = extMatch[1].toLowerCase();
             else ext = 'jpg';
           } else if (media.type === 'pdf' || media.type === 'document') {
@@ -440,7 +568,12 @@ export class DownloadService {
           const uniqueFileName = `${media.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
           const filePath = path.join(pageDir, uniqueFileName);
 
-          const response = await axios({ method: 'get', url: resolvedUrl, responseType: 'stream', timeout: 30000 });
+          const response = await axios({
+            method: 'get',
+            url: resolvedUrl,
+            responseType: 'stream',
+            timeout: 30000,
+          });
           const fileStream = fs.createWriteStream(filePath);
           response.data.pipe(fileStream);
           await new Promise<void>((resolve, reject) => {
@@ -452,7 +585,10 @@ export class DownloadService {
           archive.file(filePath, { name: archivePath });
           downloadedCount++;
         } catch (error) {
-          this.logger.error(`Failed to download media: ${media.url}`, error.message);
+          this.logger.error(
+            `Failed to download media: ${media.url}`,
+            error.message,
+          );
           failedCount++;
         }
 
@@ -460,7 +596,9 @@ export class DownloadService {
           current: downloadedCount + failedCount,
           total: totalFiles,
           fileName: fileName,
-          percentage: Math.round(((downloadedCount + failedCount) / totalFiles) * 100)
+          percentage: Math.round(
+            ((downloadedCount + failedCount) / totalFiles) * 100,
+          ),
         });
       }
 
@@ -468,7 +606,7 @@ export class DownloadService {
         current: totalFiles,
         total: totalFiles,
         fileName: 'Finalizing...',
-        percentage: 95
+        percentage: 95,
       });
 
       await archive.finalize();

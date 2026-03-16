@@ -33,10 +33,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- UI Update Functions ---
   const setStatus = (state, text, detail = '') => {
+    // Show/hide setup streaming status based on state
+    const setupStreamingStatus = document.getElementById('streamingStatus');
+    if (setupStreamingStatus) {
+      if (state === 'idle') {
+        setupStreamingStatus.classList.add('d-none');
+      } else {
+        setupStreamingStatus.classList.remove('d-none');
+      }
+    }
+    
     Object.values(statusElements).forEach(group => {
       if (!group.indicator) return;
       group.indicator.className = 'status-indicator';
       if (state === 'active') group.indicator.classList.add('active');
+      else if (state === 'completed') group.indicator.classList.add('completed');
       else if (state === 'error') group.indicator.classList.add('error');
       group.text.textContent = text;
       group.detail.textContent = detail;
@@ -114,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             totalUrls = data.total;
             isExtractionComplete = true;
             updateProgressText(data.total, data.total);
-            setStatus('idle', 'Completed', `Successfully extracted ${data.total} URLs`);
+            setStatus('completed', 'Completed', `Successfully extracted ${data.total} URLs`);
             window.notificationSystem.success(`Extraction complete: ${data.total} URLs found.`);
             isExtracting = false;
             sseSource.close();

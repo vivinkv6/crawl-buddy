@@ -12,10 +12,12 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
     ProjectsModule,
     ScraperModule,
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 30,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 30,
+      },
+    ]),
   ],
   controllers: [AppController],
   providers: [
@@ -23,7 +25,7 @@ import { RedisModule } from './redis/redis.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
-    }
+    },
   ],
 })
 export class AppModule {}
