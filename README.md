@@ -1,4 +1,4 @@
-# Crawl Buddy
+# Crawl Buddy 
 
 ## Your All-in-One SEO & Web Scraping Toolkit
 
