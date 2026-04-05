@@ -99,3 +99,11 @@ All tools use Server-Sent Events (SSE) to stream results instantly, providing im
 - **EJS**: JavaScript templating for HTML generation
 - **Bootstrap 5**: Responsive frontend framework
 - **Server-Sent Events (SSE)**: Real-time updates from server to client
+
+## Deployment
+
+This repo is ready for a GHCR + Coolify deployment flow where GitHub Actions builds the Docker image and Coolify only pulls and runs it.
+
+The project-specific setup guide is here:
+
+- [`docs/ghcr-coolify-deployment.md`](/C:/Users/vivin/Documents/Web/SEO%20Tool/Crawl%20Buddy/docs/ghcr-coolify-deployment.md)
