@@ -190,6 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
     spinner.classList.remove('d-none');
     playIcon.classList.add('d-none');
     scrapeButton.disabled = true;
+    btnDownloadMedia.disabled = true;
+    btnExportExcel.disabled = true;
     resultCard.classList.add('d-none');
     errorAlert.classList.add('d-none');
     downloadButton.classList.add('d-none');
@@ -218,6 +220,8 @@ document.addEventListener('DOMContentLoaded', () => {
     scrapeButton.disabled = false;
     progressContainer.classList.add('d-none');
     setStatus('idle', 'Completed', 'All pages have been scraped');
+    btnDownloadMedia.disabled = !isScrapeComplete;
+    btnExportExcel.disabled = !isScrapeComplete || scrapedPages.length === 0;
   };
 
   const showError = (message) => {
@@ -810,10 +814,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (stats.images > 0 || stats.videos > 0 || stats.documents > 0) {
       btnDownloadMedia.classList.remove('d-none');
       btnDownloadMedia.classList.add('btn-media');
+      btnDownloadMedia.disabled = !isScrapeComplete;
     } else {
       btnDownloadMedia.classList.add('d-none');
       btnDownloadMedia.classList.remove('btn-media');
+      btnDownloadMedia.disabled = true;
     }
+
+    btnExportExcel.disabled = !isScrapeComplete || scrapedPages.length === 0;
   };
 
   const createPageAccordionItem = (title, pageData, pageId, index) => {
@@ -992,9 +1000,16 @@ document.addEventListener('DOMContentLoaded', () => {
     scrapeButton.querySelector('.spinner').classList.add('d-none');
     scrapeButton.querySelector('.play-icon').classList.remove('d-none');
     btnDownloadMedia.classList.add('d-none');
+    btnDownloadMedia.disabled = true;
+    btnExportExcel.disabled = true;
   });
 
   btnDownloadMedia.addEventListener('click', async () => {
+    if (!isScrapeComplete) {
+      notificationSystem.info('Please wait for scraping to finish before downloading media.');
+      return;
+    }
+
     const stats = calculateStats(scrapedPages);
     const hasImages = stats.images > 0;
     const hasVideos = stats.videos > 0;
@@ -1096,6 +1111,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnExportExcel.addEventListener('click', async () => {
+    if (!isScrapeComplete) {
+      notificationSystem.info('Please wait for scraping to finish before exporting.');
+      return;
+    }
+
     if (scrapedPages.length === 0) {
       notificationSystem.warning('No data to export');
       return;
@@ -1225,6 +1245,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         downloadButton.classList.remove('d-none');
         downloadButton.disabled = false;
+        btnDownloadMedia.disabled = false;
+        btnExportExcel.disabled = false;
         notificationSystem.success(`Successfully scraped ${msg.totalPages} pages!`);
         window.scrapedData = { pages: scrapedPages };
       } else if (msg.type === 'error') {

@@ -30,6 +30,7 @@ export interface ProjectReport {
 @Injectable()
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
+  private activeCrawls = new Map<string, boolean>();
 
   constructor(
     private prisma: PrismaService,
@@ -63,19 +64,59 @@ export class ProjectsService {
     return project;
   }
 
-  // Map to store active crawl cancellation tokens or flags
-  // We can keep this in memory for now as it's process-local control, or move to Redis if we want distributed cancellation
-  private activeCrawls = new Map<string, boolean>();
-
-  // Cache to store crawl results for export - NOW REDIS
-  // private resultsCache = new Map<string, ProjectReport>();
-
   // Helper to generate a unique cache key based on the URLs
   private getUrlCacheKey(oldUrl: string, newUrl: string): string {
     // Simple hash-like key or just use base64 to be safe
     const normalizedOld = oldUrl.trim().replace(/\/$/, '');
     const normalizedNew = newUrl.trim().replace(/\/$/, '');
     return `report:urls:${Buffer.from(normalizedOld + '|' + normalizedNew).toString('base64')}`;
+  }
+
+  stopComparison(id: string): void {
+    this.logger.log(`Stop requested for project: ${id}`);
+    this.activeCrawls.set(id, false);
+  }
+
+  private normalizeComparableValue(value: string | null | undefined): string {
+    return (value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  private normalizeComparableList(values: string[] | null | undefined): string[] {
+    return (values || [])
+      .map((value) => this.normalizeComparableValue(value))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  private async collectSitemapUrls(
+    sitemapUrl: string,
+    maxDepth = 5,
+  ): Promise<string[]> {
+    const pending = [{ url: sitemapUrl, depth: 0 }];
+    const seenSitemaps = new Set<string>();
+    const urls = new Set<string>();
+
+    while (pending.length > 0) {
+      const current = pending.shift();
+      if (!current || current.depth > maxDepth || seenSitemaps.has(current.url)) {
+        continue;
+      }
+
+      seenSitemaps.add(current.url);
+      const sitemapData = await this.crawler.fetchSitemapContent(current.url);
+
+      sitemapData.urls.forEach((url) => {
+        urls.add(this.crawler.normalizeUrl(url));
+      });
+
+      sitemapData.nestedSitemaps.forEach((nestedUrl) => {
+        if (!seenSitemaps.has(nestedUrl)) {
+          pending.push({ url: nestedUrl, depth: current.depth + 1 });
+        }
+      });
+    }
+
+    return [...urls];
   }
 
   streamComparison(id: string): Observable<MessageEvent> {
@@ -528,24 +569,25 @@ export class ProjectsService {
         }
 
         // Helper to clean strings for comparison
-        const clean = (str: string | undefined | null) => (str || '').trim();
-
-        const oldTitle = clean(oldPage.title);
-        const newTitle = clean(newPage.title);
-        const oldDesc = clean(oldPage.description);
-        const newDesc = clean(newPage.description);
-        const oldKeywords = clean(oldPage.keywords);
-        const newKeywords = clean(newPage.keywords);
-        const oldOgTitle = clean(oldPage.ogTitle);
-        const newOgTitle = clean(newPage.ogTitle);
-        const oldOgDesc = clean(oldPage.ogDescription);
-        const newOgDesc = clean(newPage.ogDescription);
-        const oldOgImage = clean(oldPage.ogImage);
-        const newOgImage = clean(newPage.ogImage);
-        const oldSchemas = (oldPage.schemas || []).sort();
-        const newSchemas = (newPage.schemas || []).sort();
-        const oldH1 = clean(oldPage.h1);
-        const newH1 = clean(newPage.h1);
+        const oldTitle = this.normalizeComparableValue(oldPage.title);
+        const newTitle = this.normalizeComparableValue(newPage.title);
+        const oldDesc = this.normalizeComparableValue(oldPage.description);
+        const newDesc = this.normalizeComparableValue(newPage.description);
+        const oldKeywords = this.normalizeComparableValue(oldPage.keywords);
+        const newKeywords = this.normalizeComparableValue(newPage.keywords);
+        const oldOgTitle = this.normalizeComparableValue(oldPage.ogTitle);
+        const newOgTitle = this.normalizeComparableValue(newPage.ogTitle);
+        const oldOgDesc = this.normalizeComparableValue(oldPage.ogDescription);
+        const newOgDesc = this.normalizeComparableValue(newPage.ogDescription);
+        const oldOgImage = this.normalizeComparableValue(oldPage.ogImage);
+        const newOgImage = this.normalizeComparableValue(newPage.ogImage);
+        const oldSchemas = this.normalizeComparableList(oldPage.schemas);
+        const newSchemas = this.normalizeComparableList(newPage.schemas);
+        const oldH1 = this.normalizeComparableValue(oldPage.h1);
+        const newH1 = this.normalizeComparableValue(newPage.h1);
+        const oldCanonical = this.normalizeComparableValue(oldPage.canonical);
+        const newCanonical = this.normalizeComparableValue(newPage.canonical);
+        const newRobots = this.normalizeComparableValue(newPage.robots).toLowerCase();
 
         if (oldTitle && oldTitle !== newTitle) issues.push('Title mismatch');
         if (oldDesc && oldDesc !== newDesc) issues.push('Description mismatch');
@@ -571,21 +613,20 @@ export class ProjectsService {
 
         if (oldH1 && oldH1 !== newH1) issues.push('H1 mismatch');
 
-        if (oldPage.canonical && oldPage.canonical !== newPage.canonical) {
+        if (oldCanonical && oldCanonical !== newCanonical) {
           try {
-            const oldCan = new URL(oldPage.canonical);
-            const newCan = new URL(newPage.canonical);
+            const oldCan = new URL(oldCanonical);
+            const newCan = new URL(newCanonical);
             if (oldCan.pathname !== newCan.pathname) {
               issues.push('Canonical path mismatch');
             }
           } catch (e) {
             // If URL parsing fails but strings differ
-            if (oldPage.canonical !== newPage.canonical)
-              issues.push('Canonical mismatch');
+            issues.push('Canonical mismatch');
           }
         }
 
-        if (newPage.robots.includes('noindex'))
+        if (newRobots.includes('noindex'))
           issues.push('New page has noindex');
 
         if (oldTitle && !newTitle) issues.push('Missing Title on New');
@@ -802,34 +843,33 @@ export class ProjectsService {
       const isCancelled = () => this.activeCrawls.get(id) === false;
 
       let sitemapUrls: string[] = [];
-      let nestedSitemaps: string[] = [];
+      let totalPages: number | null = null;
+      let completedPages = 0;
+      let useSitemapStrategy = false;
 
       try {
         const userSitemap = project.sitemapUrl?.trim();
-        let targetSitemap = '';
         if (userSitemap) {
-          targetSitemap = userSitemap;
+          this.logger.log(`Fetching sitemap tree: ${userSitemap}`);
+          sitemapUrls = await this.collectSitemapUrls(userSitemap);
+          useSitemapStrategy = sitemapUrls.length > 0;
+          totalPages = sitemapUrls.length;
+          this.logger.log(`Sitemap fetched: ${sitemapUrls.length} URLs`);
         }
-
-        this.logger.log(`Fetching sitemap: ${targetSitemap}`);
-        const sitemapData =
-          await this.crawler.fetchSitemapContent(targetSitemap);
-        sitemapUrls = sitemapData.urls;
-        nestedSitemaps = sitemapData.nestedSitemaps;
-        this.logger.log(
-          `Sitemap fetched: ${sitemapUrls.length} URLs, ${nestedSitemaps.length} nested sitemaps`,
-        );
       } catch (e) {
         this.logger.warn(`Sitemap fetch failed: ${e.message}`);
       }
 
-      const useSitemapStrategy =
-        sitemapUrls.length > 0 || nestedSitemaps.length > 0;
       const startUrls = useSitemapStrategy ? sitemapUrls : [project.oldSiteUrl];
 
       this.logger.log(
         `Using strategy: ${useSitemapStrategy ? 'sitemap-based' : 'recursive crawl'}`,
       );
+      callback({
+        type: 'start',
+        totalPages,
+        strategy: useSitemapStrategy ? 'sitemap' : 'crawl',
+      });
 
       const crawlPromises = [
         (async () => {
@@ -848,32 +888,15 @@ export class ProjectsService {
               callback,
               project,
               isCancelled,
+              () => {
+                completedPages++;
+                callback({
+                  type: 'progress',
+                  completed: completedPages,
+                  total: totalPages,
+                });
+              },
             );
-
-            for (const nestedSitemapUrl of nestedSitemaps) {
-              if (isCancelled()) break;
-              this.logger.log(`Processing nested sitemap: ${nestedSitemapUrl}`);
-
-              const childData =
-                await this.crawler.fetchSitemapContent(nestedSitemapUrl);
-              if (childData.nestedSitemaps.length > 0) {
-                nestedSitemaps.push(...childData.nestedSitemaps);
-              }
-
-              await this.processUrlBatchStreaming(
-                childData.urls,
-                id,
-                oldSiteData,
-                processedOldUrls,
-                newSiteData,
-                results,
-                oldUrlsFound,
-                newUrlsFound,
-                callback,
-                project,
-                isCancelled,
-              );
-            }
           } else {
             this.logger.log(`Starting recursive crawl from: ${startUrls[0]}`);
             await this.crawler.crawlSite(
@@ -893,6 +916,14 @@ export class ProjectsService {
                   callback,
                   project,
                   isCancelled,
+                  () => {
+                    completedPages++;
+                    callback({
+                      type: 'progress',
+                      completed: completedPages,
+                      total: null,
+                    });
+                  },
                 );
               },
               isCancelled,
@@ -970,6 +1001,7 @@ export class ProjectsService {
     callback: (message: { type: string; [key: string]: any }) => void,
     project: Project,
     isCancelled: () => boolean,
+    onProcessed: () => void,
   ) {
     if (urls.length === 0) return;
 
@@ -1001,6 +1033,7 @@ export class ProjectsService {
               callback,
               project,
               isCancelled,
+              onProcessed,
             );
           } catch (e) {
             this.logger.error(
@@ -1037,6 +1070,7 @@ export class ProjectsService {
     callback: (message: { type: string; [key: string]: any }) => void,
     project: Project,
     isCancelled: () => boolean,
+    onProcessed: () => void,
   ) {
     if (isCancelled()) return;
 
@@ -1052,6 +1086,7 @@ export class ProjectsService {
       if (result.oldUrl) oldUrlsFound.add(result.oldUrl);
       if (result.newUrl) newUrlsFound.add(result.newUrl);
       callback({ type: 'result', result });
+      onProcessed();
     }
   }
 }

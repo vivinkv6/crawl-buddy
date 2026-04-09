@@ -85,6 +85,10 @@ const page = 'migration';
       <span class="results-count" id="resultsCount">0 pages</span>
     </div>
     <div class="results-header-right">
+      <button type="button" class="btn-reset d-none" id="stopBtn">
+        <i class="bi bi-stop-circle"></i>
+        Stop Analysis
+      </button>
       <a href="javascript:void(0)" class="btn-download" id="exportBtn">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download Report
@@ -381,6 +385,7 @@ const page = 'migration';
   const progressContainer = document.getElementById('progressContainer');
   const progressBar = document.getElementById('progressBar');
   const resultsCount = document.getElementById('resultsCount');
+  const stopBtn = document.getElementById('stopBtn');
   
   // Results section status elements
   const streamingStatusResults = document.getElementById('streamingStatusResults');
@@ -394,6 +399,33 @@ const page = 'migration';
   let countMissing = 0;
   let countMeta = 0;
   let currentFilter = 'all';
+  let progressState = { completed: 0, total: null };
+
+  const escapeHtml = (value) => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const normalizeDetailValue = (value) => {
+    if (Array.isArray(value)) {
+      return value.map(normalizeDetailValue).filter(Boolean).join(', ');
+    }
+
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    return String(value).replace(/\s+/g, ' ').trim();
+  };
+
+  const getProgressDetail = () => {
+    if (typeof progressState.total === 'number' && progressState.total > 0) {
+      return `Processing Page: ${progressState.completed}/${progressState.total}`;
+    }
+    return `Processing Page: ${progressState.completed}`;
+  };
 
   const setStatus = (state, text, detail = '') => {
     // Setup section status
@@ -449,6 +481,40 @@ const page = 'migration';
     }
   };
 
+  const updateProgressState = (completed, total = progressState.total) => {
+    progressState = {
+      completed,
+      total: typeof total === 'number' ? total : null
+    };
+
+    const percent = progressState.total && progressState.total > 0
+      ? Math.min(100, Math.round((progressState.completed / progressState.total) * 100))
+      : Math.min(90, Math.max(5, progressState.completed));
+
+    setProgress(percent);
+    setStatus('active', 'Processing', getProgressDetail());
+  };
+
+  const stopAnalysis = async ({ silent = false } = {}) => {
+    if (!projectId) return;
+
+    try {
+      await fetch(`/projects/${projectId}/stop`, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' }
+      });
+    } catch (error) {
+      if (!silent) {
+        notificationSystem.warning('Unable to stop the analysis cleanly.');
+      }
+    }
+
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+  };
+
   createProjectForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -487,20 +553,27 @@ const page = 'migration';
     countTotal = 0; countMissing = 0; countMeta = 0;
     updateCounters();
     rowDataStore.clear();
-    setStatus('active', 'Processing', 'Processing 0 pages');
+    progressState = { completed: 0, total: null };
+    setStatus('active', 'Processing', getProgressDetail());
     progressBar.style.width = '0%';
     progressContainer.classList.remove('d-none');
     isAnalysisComplete = false;
+    exportBtn.disabled = true;
+    stopBtn.classList.remove('d-none');
+    stopBtn.disabled = false;
 
     eventSource = new EventSource(`/projects/${id}/stream`);
     
     eventSource.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       
-      if (msg.type === 'result') {
+      if (msg.type === 'start') {
+        progressState.total = typeof msg.totalPages === 'number' ? msg.totalPages : null;
+        setStatus('active', 'Processing', getProgressDetail());
+      } else if (msg.type === 'progress') {
+        updateProgressState(msg.completed || 0, msg.total);
+      } else if (msg.type === 'result') {
         addResultRow(msg.result);
-        // Update progress status
-        setStatus('active', 'Processing', `Processed ${countTotal} pages`);
       } else if (msg.type === 'complete') {
         isAnalysisComplete = true;
         finishAnalysis();
@@ -512,8 +585,9 @@ const page = 'migration';
     
     eventSource.onerror = () => {
       eventSource.close();
+      stopBtn.classList.add('d-none');
       if (!isAnalysisComplete) {
-        setStatus('error', 'Analysis Stopped', `Stopped at ${countTotal} pages`);
+        setStatus('error', 'Analysis Stopped', getProgressDetail());
         if (typeof notificationSystem !== 'undefined') {
           notificationSystem.warning(`Analysis stopped. ${countTotal} pages were analyzed before stopping.`);
         }
@@ -529,7 +603,6 @@ const page = 'migration';
     if (result.status === 'Missing') countMissing++;
     if (result.status === 'Matched' && result.issues.length > 0) countMeta++;
     updateCounters();
-    setProgress(50);
 
     const tr = document.createElement('tr');
     tr.setAttribute('data-status', result.status);
@@ -568,10 +641,15 @@ const page = 'migration';
 
   function finishAnalysis() {
     if (eventSource) eventSource.close();
-    setStatus('completed', 'Completed', 'Analysis finished');
+    eventSource = null;
+    const completedDetail = typeof progressState.total === 'number' && progressState.total > 0
+      ? `Completed Pages: ${progressState.completed}/${progressState.total}`
+      : `Completed Pages: ${progressState.completed}`;
+    setStatus('completed', 'Completed', completedDetail);
     progressContainer.classList.add('d-none');
     if (progressContainerResults) progressContainerResults.classList.add('d-none');
     exportBtn.disabled = false;
+    stopBtn.classList.add('d-none');
   }
 
   function updateCounters() {
@@ -638,11 +716,13 @@ const page = 'migration';
     const renderRow = (label, key) => {
       const hasIssue = issues.some(i => i.toLowerCase().includes(key.toLowerCase()));
       const rowClass = hasIssue ? 'table-danger' : '';
+      const oldValue = normalizeDetailValue(oldD[key]);
+      const newValue = normalizeDetailValue(newD[key]);
       return `
         <tr class="${rowClass}">
-          <td class="fw-bold text-muted">${label}</td>
-          <td>${oldD[key] || '<em class="text-muted">Empty</em>'}</td>
-          <td>${newD[key] || '<em class="text-muted">Empty</em>'}</td>
+          <td class="fw-bold text-muted">${escapeHtml(label)}</td>
+          <td>${oldValue ? escapeHtml(oldValue) : '<em class="text-muted">Empty</em>'}</td>
+          <td>${newValue ? escapeHtml(newValue) : '<em class="text-muted">Empty</em>'}</td>
         </tr>
       `;
     };
@@ -701,9 +781,24 @@ const page = 'migration';
     }
   });
 
+  stopBtn.addEventListener('click', async () => {
+    stopBtn.disabled = true;
+    await stopAnalysis();
+    setStatus('error', 'Analysis Stopped', getProgressDetail());
+    progressContainer.classList.add('d-none');
+    if (progressContainerResults) progressContainerResults.classList.add('d-none');
+    stopBtn.classList.add('d-none');
+    notificationSystem.info('Analysis stopped.');
+  });
+
   // Reset
   document.getElementById('btn-new-audit').addEventListener('click', () => {
-    if (eventSource) eventSource.close();
+    if (eventSource && !isAnalysisComplete) {
+      stopAnalysis({ silent: true });
+    } else if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
     analysisArea.classList.add('d-none');
     setupCard.style.display = 'block';
     tbody.innerHTML = '';
@@ -714,11 +809,15 @@ const page = 'migration';
     startBtn.querySelector('.spinner').classList.add('d-none');
     startBtn.querySelector('.play-icon').classList.remove('d-none');
     createProjectForm.reset();
+    stopBtn.classList.add('d-none');
   });
 
   // Handle page unload (refresh/navigate away)
   window.addEventListener('beforeunload', () => {
-    if (eventSource) eventSource.close();
+    if (eventSource && !isAnalysisComplete && projectId) {
+      fetch(`/projects/${projectId}/stop`, { method: 'POST', keepalive: true });
+      eventSource.close();
+    }
   });
 </script>
 

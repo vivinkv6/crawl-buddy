@@ -115,6 +115,14 @@ export class ProjectsController {
     }
   }
 
+  @Post(':id/stop')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async stop(@Param('id') id: string, @Res() res: Response) {
+    this.logger.log(`Stopping project stream for: ${id}`);
+    this.projectsService.stopComparison(id);
+    return res.status(HttpStatus.OK).json({ stopped: true });
+  }
+
   @Get(':id/stream')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async stream(@Param('id') id: string, @Res() res: Response) {
@@ -129,19 +137,27 @@ export class ProjectsController {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
+    let streamClosed = false;
+    res.on('close', () => {
+      if (streamClosed) return;
+      streamClosed = true;
+      this.logger.log(`SSE client disconnected for project: ${id}`);
+      this.projectsService.stopComparison(id);
+    });
+
     try {
       const project = await this.projectsService.getProject(id);
       this.logger.log(
         `Project found: ${id}, oldSite: ${project.oldSiteUrl}, newSite: ${project.newSiteUrl}`,
       );
 
-      sendEvent({ type: 'start', projectId: id });
-
       await this.projectsService.streamComparisonWithCallback(id, (message) => {
         sendEvent(message);
       });
 
-      sendEvent({ type: 'complete' });
+      if (!streamClosed) {
+        sendEvent({ type: 'complete' });
+      }
       this.logger.log(`SSE stream completed for project: ${id}`);
       res.end();
     } catch (error) {

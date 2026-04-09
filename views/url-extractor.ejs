@@ -100,6 +100,44 @@ const page = 'url-extractor';
   </div>
 </div>
 
+<style>
+  #resultCard .results-content {
+    background: var(--cb-bg);
+  }
+
+  #resultCard .table-responsive {
+    background: var(--cb-bg);
+  }
+
+  #resultCard .results-table {
+    background: var(--cb-bg);
+    margin-bottom: 0;
+  }
+
+  #resultCard .results-table tbody tr {
+    background: var(--cb-bg);
+  }
+
+  #resultCard .results-table tbody td {
+    background: var(--cb-bg);
+    color: var(--cb-text);
+    border-bottom: 1px solid var(--cb-gray-100);
+  }
+
+  #resultCard .results-table tbody tr:hover td {
+    background: var(--cb-gray-50);
+  }
+
+  #resultCard .url-cell {
+    font-family: monospace;
+    color: var(--cb-gray-700);
+  }
+
+  [data-theme="dark"] #resultCard .results-table tbody tr:hover td {
+    background: var(--cb-bg-tertiary);
+  }
+</style>
+
 <script src="/javascripts/notification.js"></script>
 <script src="/javascripts/url-extractor.js"></script>
 

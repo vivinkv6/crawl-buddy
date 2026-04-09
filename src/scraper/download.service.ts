@@ -10,6 +10,29 @@ import axios from 'axios';
 export class DownloadService {
   private readonly logger = new Logger(DownloadService.name);
 
+  private async waitForStreamFinish(
+    readable: NodeJS.ReadableStream,
+    writable: fs.WriteStream,
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      readable.on('error', fail);
+      writable.on('error', fail);
+      writable.on('finish', finish);
+    });
+  }
+
   private ensureDirectoryExists(dirPath: string) {
     try {
       if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -309,14 +332,11 @@ export class DownloadService {
               const filePath = path.join(pageDir, uniqueFileName);
               const fileStream = fs.createWriteStream(filePath);
               response.data.pipe(fileStream);
-              await new Promise<void>((resolve, reject) => {
-                fileStream.on('finish', resolve);
-                fileStream.on('error', reject);
-              });
+              await this.waitForStreamFinish(response.data, fileStream);
               archive.file(filePath, {
-                name: `${new URL(page.url).hostname}/${fileName}`,
+                name: `${new URL(page.url).hostname}/${uniqueFileName}`,
               });
-              metadata.images.push({ url: resolvedUrl, fileName });
+              metadata.images.push({ url: resolvedUrl, fileName: uniqueFileName });
             } catch (error) {
               metadata.failedImageDownloads.push({
                 url: imageUrl,
@@ -445,10 +465,7 @@ export class DownloadService {
           });
           const fileStream = fs.createWriteStream(filePath);
           response.data.pipe(fileStream);
-          await new Promise<void>((resolve, reject) => {
-            fileStream.on('finish', resolve);
-            fileStream.on('error', reject);
-          });
+          await this.waitForStreamFinish(response.data, fileStream);
 
           const archivePath = `${new URL(media.pageUrl).hostname}/${folderName}/${fileName}`;
           archive.file(filePath, { name: archivePath });
@@ -576,10 +593,7 @@ export class DownloadService {
           });
           const fileStream = fs.createWriteStream(filePath);
           response.data.pipe(fileStream);
-          await new Promise<void>((resolve, reject) => {
-            fileStream.on('finish', resolve);
-            fileStream.on('error', reject);
-          });
+          await this.waitForStreamFinish(response.data, fileStream);
 
           const archivePath = `${new URL(media.pageUrl).hostname}/${folderName}/${uniqueFileName}`;
           archive.file(filePath, { name: archivePath });
