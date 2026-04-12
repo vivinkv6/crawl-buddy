@@ -4,7 +4,9 @@ import { CrawlerService, PageData } from '../crawler.service';
 import { Project } from '@prisma/client';
 import { Observable, Subject } from 'rxjs';
 import * as XLSX from 'xlsx';
-import { RedisService } from '../redis/redis.service';
+import * as fs from 'fs';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface ComparisonResult {
   oldUrl: string;
@@ -31,11 +33,12 @@ export interface ProjectReport {
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
   private activeCrawls = new Map<string, boolean>();
+  private reportCacheById = new Map<string, ProjectReport>();
+  private reportCacheByUrlKey = new Map<string, ProjectReport>();
 
   constructor(
     private prisma: PrismaService,
     private crawler: CrawlerService,
-    private readonly redis: RedisService,
   ) {}
 
   async createProject(
@@ -70,6 +73,30 @@ export class ProjectsService {
     const normalizedOld = oldUrl.trim().replace(/\/$/, '');
     const normalizedNew = newUrl.trim().replace(/\/$/, '');
     return `report:urls:${Buffer.from(normalizedOld + '|' + normalizedNew).toString('base64')}`;
+  }
+
+  private getCachedReport(project: Project, id: string): ProjectReport | null {
+    return (
+      this.reportCacheByUrlKey.get(
+        this.getUrlCacheKey(project.oldSiteUrl, project.newSiteUrl),
+      ) ||
+      this.reportCacheById.get(id) ||
+      null
+    );
+  }
+
+  private cacheReport(id: string, project: Project, report: ProjectReport): void {
+    this.reportCacheById.set(id, report);
+    this.reportCacheByUrlKey.set(
+      this.getUrlCacheKey(project.oldSiteUrl, project.newSiteUrl),
+      report,
+    );
+  }
+
+  private ensureDirectoryExists(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
   }
 
   stopComparison(id: string): void {
@@ -128,43 +155,27 @@ export class ProjectsService {
     // Fetch project details first to get URLs
     this.getProject(id)
       .then((project) => {
-        const cacheKey = this.getUrlCacheKey(
-          project.oldSiteUrl,
-          project.newSiteUrl,
-        );
+        const cachedReport = this.getCachedReport(project, id);
 
-        // Check Cache by URL Pair
-        this.redis
-          .get(cacheKey)
-          .then((cached) => {
-            if (cached) {
-              console.log(
-                `[streamComparison] Cache hit for URL pair (Project ${id}). Replaying results.`,
-              );
-              const report = JSON.parse(cached) as ProjectReport;
+        if (cachedReport) {
+          console.log(
+            `[streamComparison] Cache hit for URL pair (Project ${id}). Replaying results.`,
+          );
+          for (const result of cachedReport.results) {
+            subject.next({
+              data: { type: 'result', result },
+            } as MessageEvent);
+          }
 
-              // Replay results
-              for (const result of report.results) {
-                subject.next({
-                  data: { type: 'result', result },
-                } as MessageEvent);
-              }
-
-              subject.next({ data: { type: 'complete' } } as MessageEvent);
-              subject.complete();
-              this.activeCrawls.delete(id);
-            } else {
-              // Start process in background if no cache
-              console.log(
-                `[streamComparison] Cache miss for URL pair (Project ${id}). Starting live crawl.`,
-              );
-              this.runComparisonStreaming(id, subject);
-            }
-          })
-          .catch((err) => {
-            console.error('Redis cache check failed', err);
+          subject.next({ data: { type: 'complete' } } as MessageEvent);
+          subject.complete();
+          this.activeCrawls.delete(id);
+        } else {
+          console.log(
+            `[streamComparison] Cache miss for URL pair (Project ${id}). Starting live crawl.`,
+          );
             this.runComparisonStreaming(id, subject);
-          });
+        }
       })
       .catch((err) => {
         console.error('Project not found during stream init', err);
@@ -191,15 +202,6 @@ export class ProjectsService {
   ) {
     try {
       const project = await this.getProject(id);
-
-      // We will use Redis to store these intermediate maps if we want to avoid memory crashes.
-      // However, for simplicity and performance of the streaming logic, keeping them in memory
-      // is much faster unless the site is huge.
-      // The user asked to "Move State to Redis ... store active crawl results".
-      // Let's interpret this as storing the FINAL result in Redis, and maybe the "visited" set if we can.
-      // But refactoring the entire CrawlerService to be stateless/Redis-backed is a huge task.
-      // We will stick to in-memory for the CRAWL process (which now has concurrency control),
-      // but we will definitely store the RESULT in Redis.
 
       const oldSiteData = new Map<string, PageData>();
       const newSiteData = new Map<string, PageData>();
@@ -374,23 +376,7 @@ export class ProjectsService {
         results,
       };
 
-      // Save to Redis (Expire in 1 hour)
-      console.log(
-        `[runComparisonStreaming] Saving report to Redis for project ${id} (TTL: 3600s)`,
-      );
-
-      // Save by ID (legacy/direct lookup)
-      await this.redis.set(`report:${id}`, JSON.stringify(report), 3600);
-
-      // Save by URL Pair (for reuse across projects)
-      const urlKey = this.getUrlCacheKey(
-        project.oldSiteUrl,
-        project.newSiteUrl,
-      );
-      console.log(
-        `[runComparisonStreaming] Saving report to Redis for URLs (Key: ${urlKey})`,
-      );
-      await this.redis.set(urlKey, JSON.stringify(report), 3600);
+      this.cacheReport(id, project, report);
 
       subject.next({ data: { type: 'complete' } } as MessageEvent);
       subject.complete();
@@ -653,18 +639,10 @@ export class ProjectsService {
   async runComparison(id: string): Promise<ProjectReport> {
     const project = await this.getProject(id);
 
-    // Check Redis cache by URL Key (preferred) or ID
-    const urlKey = this.getUrlCacheKey(project.oldSiteUrl, project.newSiteUrl);
-    let cached = await this.redis.get(urlKey);
-
-    if (!cached) {
-      // Fallback to ID-based cache
-      cached = await this.redis.get(`report:${id}`);
-    }
-
+    const cached = this.getCachedReport(project, id);
     if (cached) {
       console.log(`[runComparison] Cache hit for project ${id}`);
-      return JSON.parse(cached);
+      return cached;
     }
     console.log(
       `[runComparison] Cache miss for project ${id}, starting new crawl`,
@@ -712,7 +690,10 @@ export class ProjectsService {
     });
   }
 
-  exportToExcel(report: ProjectReport, filter?: string): Buffer {
+  async exportToExcel(
+    report: ProjectReport,
+    filter?: string,
+  ): Promise<{ filePath: string; fileName: string; cleanup: () => void }> {
     const wb = XLSX.utils.book_new();
 
     // Filter Logic
@@ -817,8 +798,27 @@ export class ProjectsService {
     ws['!cols'] = wscols;
 
     XLSX.utils.book_append_sheet(wb, ws, 'Crawl Report');
+    const sessionId = uuidv4();
+    const exportDir = path.join(process.cwd(), 'uploads', 'exports', sessionId);
+    this.ensureDirectoryExists(exportDir);
 
-    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const fileName = `crawlbuddy_report_${report.project.id}_${filter || 'all'}.xlsx`;
+    const filePath = path.join(exportDir, fileName);
+    XLSX.writeFile(wb, filePath);
+
+    return {
+      filePath,
+      fileName,
+      cleanup: () => {
+        try {
+          if (fs.existsSync(exportDir)) {
+            fs.rmSync(exportDir, { recursive: true, force: true });
+          }
+        } catch (error) {
+          this.logger.error(`Failed to clean export directory: ${error.message}`);
+        }
+      },
+    };
   }
 
   async streamComparisonWithCallback(
@@ -966,14 +966,7 @@ export class ProjectsService {
         results,
       };
 
-      this.logger.log(`Saving report to Redis for project ${id} (TTL: 3600s)`);
-      await this.redis.set(`report:${id}`, JSON.stringify(report), 3600);
-
-      const urlKey = this.getUrlCacheKey(
-        project.oldSiteUrl,
-        project.newSiteUrl,
-      );
-      await this.redis.set(urlKey, JSON.stringify(report), 3600);
+      this.cacheReport(id, project, report);
 
       this.logger.log(
         `Stream comparison completed for project: ${id}, total results: ${results.length}`,

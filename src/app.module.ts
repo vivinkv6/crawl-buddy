@@ -5,11 +5,9 @@ import { ProjectsModule } from './projects/projects.module';
 import { ScraperModule } from './scraper/scraper.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
-    RedisModule,
     ProjectsModule,
     ScraperModule,
     ThrottlerModule.forRoot([

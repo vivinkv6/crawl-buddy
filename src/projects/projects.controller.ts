@@ -179,15 +179,15 @@ export class ProjectsController {
   ) {
     this.logger.log(`Exporting report for project: ${id}, filter: ${filter}`);
     const report = await this.projectsService.runComparison(id);
-    const buffer = this.projectsService.exportToExcel(report, filter);
+    const exportFile = await this.projectsService.exportToExcel(report, filter);
 
-    res.set({
-      'Content-Type':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="crawlbuddy_report_${id}_${filter || 'all'}.xlsx"`,
-      'Content-Length': buffer.length,
+    res.download(exportFile.filePath, exportFile.fileName, (err) => {
+      if (err) {
+        this.logger.error(`Export failed for project ${id}: ${err.message}`);
+      } else {
+        this.logger.log(`Export completed for project: ${id}`);
+      }
+      exportFile.cleanup();
     });
-    res.end(buffer);
-    this.logger.log(`Export completed for project: ${id}`);
   }
 }

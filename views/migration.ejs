@@ -123,6 +123,11 @@ const page = 'migration';
       <span class="stat-value" id="summaryMeta">0</span>
       <span class="stat-label">Meta Issues</span>
     </div>
+    <div class="stat-item">
+      <i class="bi bi-check2-circle"></i>
+      <span class="stat-value" id="summaryNoIssues">0</span>
+      <span class="stat-label">No Issues</span>
+    </div>
   </div>
 
   <div class="results-content">
@@ -130,6 +135,7 @@ const page = 'migration';
       <button class="filter-btn active" data-filter="all">All</button>
       <button class="filter-btn filter-btn-danger" data-filter="Missing">Missing</button>
       <button class="filter-btn filter-btn-warning" data-filter="Meta">Meta Issues</button>
+      <button class="filter-btn filter-btn-success" data-filter="NoIssues">No Issues</button>
     </div>
     
     <div class="table-responsive">
@@ -323,6 +329,7 @@ const page = 'migration';
   }
 
   .btn-view-details {
+    position: relative;
     padding: 0.375rem 0.75rem;
     background: var(--cb-bg);
     border: 1px solid var(--cb-primary);
@@ -337,6 +344,23 @@ const page = 'migration';
   .btn-view-details:hover {
     background: var(--cb-primary);
     color: white;
+  }
+
+  .btn-view-details .issue-count-badge {
+    position: absolute;
+    top: -0.55rem;
+    right: -0.45rem;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    background: var(--cb-danger);
+    color: white;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.2rem;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--cb-bg);
   }
 
   .empty-state {
@@ -398,6 +422,7 @@ const page = 'migration';
   let countTotal = 0;
   let countMissing = 0;
   let countMeta = 0;
+  let countNoIssues = 0;
   let currentFilter = 'all';
   let progressState = { completed: 0, total: null };
 
@@ -425,6 +450,70 @@ const page = 'migration';
       return `Processing Page: ${progressState.completed}/${progressState.total}`;
     }
     return `Processing Page: ${progressState.completed}`;
+  };
+
+  const getModalFieldConfigs = () => [
+    {
+      label: 'Title',
+      key: 'title',
+      issueMatcher: (issue) => issue === 'title mismatch' || issue === 'missing title on new'
+    },
+    {
+      label: 'Description',
+      key: 'description',
+      issueMatcher: (issue) => issue === 'description mismatch' || issue === 'missing description on new'
+    },
+    {
+      label: 'Keywords',
+      key: 'keywords',
+      issueMatcher: (issue) => issue === 'keywords mismatch' || issue === 'missing keywords on new'
+    },
+    {
+      label: 'OG Title',
+      key: 'ogTitle',
+      issueMatcher: (issue) => issue === 'og title mismatch' || issue === 'missing og title on new'
+    },
+    {
+      label: 'OG Description',
+      key: 'ogDescription',
+      issueMatcher: (issue) => issue === 'og description mismatch' || issue === 'missing og description on new'
+    },
+    {
+      label: 'H1',
+      key: 'h1',
+      issueMatcher: (issue) => issue === 'h1 mismatch' || issue === 'missing h1 on new'
+    },
+    {
+      label: 'Canonical',
+      key: 'canonical',
+      issueMatcher: (issue) =>
+        issue === 'canonical mismatch' || issue === 'canonical path mismatch'
+    },
+    {
+      label: 'Robots',
+      key: 'robots',
+      issueMatcher: (issue) => issue === 'new page has noindex'
+    }
+  ];
+
+  const hasHighlightableModalIssues = (issues = []) => {
+    const normalizedIssues = issues.map(issue => normalizeDetailValue(issue).toLowerCase());
+    return getModalFieldConfigs().some(({ issueMatcher }) =>
+      normalizedIssues.some(issueMatcher)
+    );
+  };
+
+  const getHighlightableIssues = (issues = []) => {
+    const normalizedIssues = issues.map(issue => ({
+      raw: issue,
+      normalized: normalizeDetailValue(issue).toLowerCase()
+    }));
+
+    return normalizedIssues
+      .filter(({ normalized }) =>
+        getModalFieldConfigs().some(({ issueMatcher }) => issueMatcher(normalized))
+      )
+      .map(({ raw }) => raw);
   };
 
   const setStatus = (state, text, detail = '') => {
@@ -598,24 +687,37 @@ const page = 'migration';
   function addResultRow(result) {
     const rowId = Math.random().toString(36).substr(2, 9);
     rowDataStore.set(rowId, result);
+    const highlightableIssues = getHighlightableIssues(result.issues);
+    const hasHighlightableIssues = highlightableIssues.length > 0;
+    const hasNoIssues =
+      result.status === 'Matched' &&
+      !hasHighlightableIssues &&
+      (!result.issues || result.issues.length === 0);
 
     countTotal++;
     if (result.status === 'Missing') countMissing++;
-    if (result.status === 'Matched' && result.issues.length > 0) countMeta++;
+    if (result.status === 'Matched' && hasHighlightableIssues) countMeta++;
+    if (hasNoIssues) countNoIssues++;
     updateCounters();
 
     const tr = document.createElement('tr');
     tr.setAttribute('data-status', result.status);
-    tr.setAttribute('data-has-meta', (result.status === 'Matched' && result.issues.length > 0) ? 'true' : 'false');
+    tr.setAttribute('data-has-meta', (result.status === 'Matched' && hasHighlightableIssues) ? 'true' : 'false');
+    tr.setAttribute('data-has-no-issues', hasNoIssues ? 'true' : 'false');
     
-    const isVisible = shouldShowRow(result.status, result.issues);
+    const isVisible = shouldShowRow(result.status, highlightableIssues);
     if (!isVisible) tr.style.display = 'none';
 
     let issuesHtml = '';
     let actionHtml = '';
     
-    if (result.status === 'Matched' && result.issues.length > 0) {
-      actionHtml = `<button class="btn-view-details" data-row-id="${rowId}">View Details</button>`;
+    if (result.status === 'Matched' && hasHighlightableIssues) {
+      actionHtml = `
+        <button class="btn-view-details" data-row-id="${rowId}">
+          View Details
+          <span class="issue-count-badge">${highlightableIssues.length}</span>
+        </button>
+      `;
     } else if (result.status === 'New') {
       // New pages don't have issues - they're just new content
     } else if (result.status !== 'Matched') {
@@ -636,6 +738,7 @@ const page = 'migration';
     if (currentFilter === 'all') return true;
     if (currentFilter === 'Missing') return status === 'Missing' || status === 'Error';
     if (currentFilter === 'Meta') return status === 'Matched' && issues.length > 0;
+    if (currentFilter === 'NoIssues') return status === 'Matched' && issues.length === 0;
     return true;
   }
 
@@ -656,6 +759,7 @@ const page = 'migration';
     document.getElementById('summaryTotalOld').innerText = countTotal;
     document.getElementById('summaryMissing').innerText = countMissing;
     document.getElementById('summaryMeta').innerText = countMeta;
+    document.getElementById('summaryNoIssues').innerText = countNoIssues;
     resultsCount.textContent = `${countTotal} page${countTotal !== 1 ? 's' : ''}`;
   }
 
@@ -686,11 +790,13 @@ const page = 'migration';
     rows.forEach(row => {
       const status = row.getAttribute('data-status');
       const hasMeta = row.getAttribute('data-has-meta') === 'true';
+      const hasNoIssues = row.getAttribute('data-has-no-issues') === 'true';
       
       let shouldShow = false;
       if (currentFilter === 'all') shouldShow = true;
       else if (currentFilter === 'Missing') shouldShow = status === 'Missing' || status === 'Error';
       else if (currentFilter === 'Meta') shouldShow = hasMeta;
+      else if (currentFilter === 'NoIssues') shouldShow = hasNoIssues;
       
       row.style.display = shouldShow ? '' : 'none';
     });
@@ -712,12 +818,19 @@ const page = 'migration';
     const oldD = data.oldData || {};
     const newD = data.newData || {};
     const issues = data.issues || [];
-    
-    const renderRow = (label, key) => {
-      const hasIssue = issues.some(i => i.toLowerCase().includes(key.toLowerCase()));
-      const rowClass = hasIssue ? 'table-danger' : '';
+
+    const normalizedIssues = issues.map(issue => normalizeDetailValue(issue).toLowerCase());
+    const fieldConfigs = getModalFieldConfigs();
+
+    const renderRow = ({
+      label,
+      key,
+      issueMatcher
+    }) => {
+      const hasIssue = normalizedIssues.some(issueMatcher);
       const oldValue = normalizeDetailValue(oldD[key]);
       const newValue = normalizeDetailValue(newD[key]);
+      const rowClass = hasIssue ? 'table-danger' : '';
       return `
         <tr class="${rowClass}">
           <td class="fw-bold text-muted">${escapeHtml(label)}</td>
@@ -737,14 +850,7 @@ const page = 'migration';
           </tr>
         </thead>
         <tbody>
-          ${renderRow('Title', 'title')}
-          ${renderRow('Description', 'description')}
-          ${renderRow('Keywords', 'keywords')}
-          ${renderRow('OG Title', 'ogTitle')}
-          ${renderRow('OG Description', 'ogDescription')}
-          ${renderRow('H1', 'h1')}
-          ${renderRow('Canonical', 'canonical')}
-          ${renderRow('Robots', 'robots')}
+          ${fieldConfigs.map(renderRow).join('')}
         </tbody>
       </table>
     `;
@@ -803,7 +909,7 @@ const page = 'migration';
     setupCard.style.display = 'block';
     tbody.innerHTML = '';
     rowDataStore.clear();
-    countTotal = 0; countMissing = 0; countMeta = 0;
+    countTotal = 0; countMissing = 0; countMeta = 0; countNoIssues = 0;
     updateCounters();
     startBtn.disabled = false;
     startBtn.querySelector('.spinner').classList.add('d-none');
