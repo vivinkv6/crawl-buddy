@@ -23,9 +23,9 @@
 <!-- Tools Section -->
 <section class="py-5">
     <div class="container">
-        <div class="row g-4 justify-content-center">
+        <div class="row g-4 justify-content-center tools-grid">
             <!-- Website Scraper -->
-            <div class="col-md-6 col-lg-4">
+            <div class="col-md-6">
                 <a href="/scraper" class="tool-card text-decoration-none">
                     <div class="tool-card-icon">
                         <i class="bi bi-globe2"></i>
@@ -38,7 +38,7 @@
             </div>
 
             <!-- Migration Checker -->
-            <div class="col-md-6 col-lg-4">
+            <div class="col-md-6">
                 <a href="/migration" class="tool-card text-decoration-none" style="--cb-primary: var(--cb-success);">
                     <div class="tool-card-icon" style="background: var(--cb-success-light); color: var(--cb-success-dark);">
                         <i class="bi bi-arrow-left-right"></i>
@@ -51,7 +51,7 @@
             </div>
 
             <!-- URL Extractor -->
-            <div class="col-md-6 col-lg-4">
+            <div class="col-md-6">
                 <a href="/scraper/url-extractor" class="tool-card text-decoration-none" style="--cb-primary: #8b5cf6;">
                     <div class="tool-card-icon" style="background: var(--cb-info-light); color: var(--cb-info-dark);">
                         <i class="bi bi-link-45deg"></i>
@@ -62,11 +62,30 @@
                     </p>
                 </a>
             </div>
+
+            <!-- Broken Link Checker -->
+            <div class="col-md-6">
+                <a href="/broken-links" class="tool-card text-decoration-none" style="--cb-primary: #ef4444;">
+                    <div class="tool-card-icon" style="background: #fee2e2; color: #b91c1c;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                    <h3 class="tool-card-title">Broken Link Checker</h3>
+                    <p class="tool-card-desc">
+                        Check a single page or audit every page in your sitemap, then review broken links with detailed diagnostics.
+                    </p>
+                </a>
+            </div>
         </div>
     </div>
 </section>
 
 <style>
+    .tools-grid {
+        max-width: 960px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
     .hero-description {
         font-size: 1.1rem;
         color: var(--cb-gray-500);

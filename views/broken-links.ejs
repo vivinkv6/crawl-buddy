@@ -1,0 +1,596 @@
+<%
+const page = 'broken-links';
+%>
+<%- include('partials/header') %>
+
+<link rel="stylesheet" href="/stylesheets/scraper.css">
+
+<div class="scraper-container">
+  <div class="scraper-header">
+    <h1 class="scraper-title">Broken Link Checker</h1>
+    <p class="scraper-subtitle">Check every link on a single page or audit every page listed in your sitemap.</p>
+  </div>
+
+  <div class="scraper-card" id="setupCard">
+    <form id="auditForm" class="scrape-form" novalidate>
+      <div class="form-section">
+        <div class="scope-selector">
+          <label class="section-label">Audit Type</label>
+          <div class="scope-options">
+            <label class="scope-option scope-option--active" data-mode="page">
+              <input type="radio" name="auditMode" value="page" checked>
+              <span class="scope-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </span>
+              <span class="scope-text">
+                <strong>Single Page</strong>
+                <small>Check links on one page</small>
+              </span>
+            </label>
+            <label class="scope-option" data-mode="sitemap">
+              <input type="radio" name="auditMode" value="sitemap">
+              <span class="scope-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </span>
+              <span class="scope-text">
+                <strong>Entire Website</strong>
+                <small>Crawl all pages via sitemap</small>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="scope-selector">
+          <label class="section-label">Link Scope</label>
+          <div class="scope-options scope-options--link">
+            <label class="scope-option scope-option--active" data-scope="internal">
+              <input type="checkbox" name="linkScope" value="internal" checked>
+              <span class="scope-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </span>
+              <span class="scope-text">
+                <strong>Internal Only</strong>
+              </span>
+            </label>
+            <label class="scope-option scope-option--active" data-scope="external">
+              <input type="checkbox" name="linkScope" value="external" checked>
+              <span class="scope-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </span>
+              <span class="scope-text">
+                <strong>External Only</strong>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="url-input-group">
+          <label class="input-label" for="websiteUrl">
+            <i class="bi bi-globe2"></i>
+            <span id="urlLabelText">Page URL</span>
+          </label>
+          <div class="input-wrapper">
+            <input type="url" id="websiteUrl" class="url-input" placeholder="https://example.com/page" required autocomplete="url">
+          </div>
+          <span class="input-hint" id="urlHint">We will check every link found on this page.</span>
+          <div class="bl-field-error d-none" id="urlError"></div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-scrape" id="startBtn">
+          <span class="btn-icon">
+            <span class="spinner-border spinner-border-sm d-none" id="startSpinner" role="status" aria-hidden="true"></span>
+            <i class="bi bi-search" id="startIcon"></i>
+          </span>
+          <span class="btn-text">Start Analysis</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="error-section bl-error-section d-none" id="auditErrorBox">
+    <i class="bi bi-x-octagon-fill me-2"></i>
+    <span id="auditErrorMessage"></span>
+  </div>
+
+  <div class="results-section d-none" id="resultsCard">
+    <div class="results-header">
+      <div class="results-header-left">
+        <h2 class="results-title">Analysis Results</h2>
+        <span class="results-count" id="resultsCount">0 links</span>
+      </div>
+      <div class="results-header-right">
+        <button type="button" class="btn-reset d-none" id="cancelBtn">
+          <i class="bi bi-stop-circle"></i>
+          Stop Analysis
+        </button>
+        <a href="javascript:void(0)" class="btn-download-option" id="exportBtn">
+          <i class="bi bi-file-earmark-excel"></i>
+          Download Report
+        </a>
+      </div>
+    </div>
+
+    <div class="streaming-status" id="resultsStatus">
+      <div class="status-indicator" id="statusIndicator"></div>
+      <div class="status-content">
+        <span class="status-text" id="statusText">Starting analysis...</span>
+        <span class="status-detail" id="statusDetail">Preparing crawler</span>
+      </div>
+      <div class="progress-container" id="progressContainer">
+        <div class="progress-bar" id="auditProgressBar"></div>
+      </div>
+    </div>
+
+    <div class="results-stats">
+      <div class="stat-item">
+        <i class="bi bi-files"></i>
+        <span class="stat-value" id="summaryPages">0</span>
+        <span class="stat-label">Pages Scanned</span>
+      </div>
+      <div class="stat-item">
+        <i class="bi bi-link-45deg"></i>
+        <span class="stat-value" id="summaryChecked">0</span>
+        <span class="stat-label">Links Checked</span>
+      </div>
+      <div class="stat-item">
+        <i class="bi bi-x-circle"></i>
+        <span class="stat-value" id="summaryBroken">0</span>
+        <span class="stat-label">Broken Links</span>
+      </div>
+      <div class="stat-item">
+        <i class="bi bi-check2-circle"></i>
+        <span class="stat-value" id="summaryHealthy">0</span>
+        <span class="stat-label">Healthy Links</span>
+      </div>
+    </div>
+
+    <div class="results-content">
+      <div class="filter-bar">
+        <button type="button" class="filter-btn active" data-status="all">All</button>
+        <button type="button" class="filter-btn filter-btn-danger" data-status="broken">Broken</button>
+        <button type="button" class="filter-btn filter-btn-danger" data-status="server_error">Server Errors</button>
+        <button type="button" class="filter-btn filter-btn-warning" data-status="redirect">Redirecting</button>
+        <button type="button" class="filter-btn filter-btn-success" data-status="healthy">Healthy</button>
+        <a href="javascript:void(0)" class="btn-reset bl-new-audit" id="newAuditBtn">
+          <i class="bi bi-plus-circle"></i>
+          Start New Audit
+        </a>
+      </div>
+
+      <div class="table-responsive">
+        <table class="results-table bl-results-table">
+          <thead>
+            <tr>
+              <th>Source Page</th>
+              <th>Destination URL</th>
+              <th>Status</th>
+              <th>Issues</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTableBody"></tbody>
+        </table>
+      </div>
+      <div class="bl-empty-state d-none" id="emptyResults">
+        <i class="bi bi-check2-circle"></i>
+        <h3>No matching results</h3>
+        <p id="emptyResultsText">No links match the current filters.</p>
+      </div>
+      <div class="bl-empty-state d-none" id="loadingResults">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-3 mb-0">Loading results...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bl-detail-overlay d-none" id="detailOverlay"></div>
+<aside class="bl-detail-panel" id="detailPanel" aria-hidden="true" aria-labelledby="detailTitle">
+  <div class="bl-detail-header">
+    <div>
+      <span class="bl-muted-label">Link diagnostics</span>
+      <h2 id="detailTitle">Result details</h2>
+    </div>
+    <button type="button" class="bl-icon-btn" id="closeDetailBtn" aria-label="Close details">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+  <div class="bl-detail-body" id="detailBody">
+    <div class="bl-empty-state">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 mb-0">Loading diagnostics...</p>
+    </div>
+  </div>
+</aside>
+
+<style>
+  .scope-options--link {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .scope-options--link .scope-option input[type="checkbox"] {
+    position: static;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    opacity: 1;
+    accent-color: var(--cb-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .scope-options--link .scope-text strong {
+    line-height: 1.2;
+  }
+
+  @media (max-width: 767px) {
+    .scope-options--link {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .bl-field-error {
+    color: var(--cb-danger);
+    font-size: 0.82rem;
+  }
+
+  .bl-error-section {
+    display: flex;
+    align-items: center;
+    margin: 1.25rem 0;
+  }
+
+  .bl-muted-label {
+    color: var(--cb-gray-500);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+
+  .filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--cb-gray-100);
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--cb-gray-200);
+    background: var(--cb-bg);
+    border-radius: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--cb-gray-600);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .filter-btn:hover {
+    border-color: var(--cb-primary);
+    color: var(--cb-primary);
+  }
+
+  .filter-btn.active {
+    background: var(--cb-primary);
+    border-color: var(--cb-primary);
+    color: #fff;
+  }
+
+  .filter-btn-danger.active {
+    background: var(--cb-danger);
+    border-color: var(--cb-danger);
+  }
+
+  .filter-btn-success.active {
+    background: var(--cb-success);
+    border-color: var(--cb-success);
+  }
+
+  .filter-btn-warning.active {
+    background: var(--cb-warning);
+    border-color: var(--cb-warning);
+  }
+
+  .filter-bar .bl-new-audit {
+    margin-left: auto;
+    white-space: nowrap;
+    border-radius: 0;
+  }
+
+  .bl-results-table {
+    width: 100%;
+    min-width: 850px;
+    border-collapse: collapse;
+  }
+
+  .bl-results-table th {
+    background: var(--cb-gray-50);
+    padding: 0.875rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--cb-gray-500);
+    border-bottom: 1px solid var(--cb-gray-100);
+    white-space: nowrap;
+  }
+
+  .bl-results-table td {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--cb-gray-100);
+    font-size: 0.9rem;
+    vertical-align: middle;
+  }
+
+  .bl-results-table tr:hover {
+    background: var(--cb-gray-50);
+  }
+
+  .url-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cb-gray-600);
+  }
+
+  .url-cell a {
+    color: inherit;
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 0.8rem;
+  }
+
+  .url-cell a:hover {
+    color: var(--cb-primary);
+  }
+
+  .issue-cell {
+    white-space: nowrap;
+  }
+
+  .issue-none {
+    color: var(--cb-gray-500);
+    font-size: 0.8rem;
+    margin-right: 0.6rem;
+  }
+
+  .badge-missing,
+  .badge-matched,
+  .badge-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .issue-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    margin: 0.125rem 0.35rem 0.125rem 0.125rem;
+    border-radius: 0;
+    background: var(--cb-warning-light);
+    color: var(--cb-warning-dark);
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .btn-view-details {
+    padding: 0.375rem 0.75rem;
+    background: var(--cb-bg);
+    border: 1px solid var(--cb-primary);
+    border-radius: 0;
+    color: var(--cb-primary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-view-details:hover {
+    background: var(--cb-primary);
+    color: #fff;
+  }
+
+  .badge-missing { background: var(--cb-danger-light); color: var(--cb-danger); }
+  .badge-matched { background: var(--cb-gray-100); color: var(--cb-gray-700); }
+  .badge-warning { background: var(--cb-warning-light); color: var(--cb-warning-dark); }
+
+  [data-theme="dark"] .badge-missing,
+  [data-theme="dark"] .issue-badge { background: rgba(153, 27, 27, 0.25); color: #fca5a5; }
+  [data-theme="dark"] .badge-matched { background: rgba(71, 85, 105, 0.3); color: #cbd5e1; }
+  [data-theme="dark"] .badge-warning { background: rgba(146, 64, 14, 0.25); color: #fcd34d; }
+
+  .bl-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: var(--cb-radius);
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .bl-badge-healthy { background: #dcfce7; color: #166534; }
+  .bl-badge-broken,
+  .bl-badge-server_error { background: #fee2e2; color: #991b1b; }
+  .bl-badge-redirect { background: #fef3c7; color: #92400e; }
+  .bl-badge-restricted { background: #ede9fe; color: #5b21b6; }
+  .bl-badge-unverified { background: #f1f5f9; color: #475569; }
+  .bl-badge-pending { background: #e2e8f0; color: #475569; }
+
+  [data-theme="dark"] .bl-badge-healthy { background: rgba(22, 101, 52, 0.25); color: #86efac; }
+  [data-theme="dark"] .bl-badge-broken,
+  [data-theme="dark"] .bl-badge-server_error { background: rgba(153, 27, 27, 0.25); color: #fca5a5; }
+  [data-theme="dark"] .bl-badge-redirect { background: rgba(146, 64, 14, 0.25); color: #fcd34d; }
+  [data-theme="dark"] .bl-badge-restricted { background: rgba(91, 33, 182, 0.25); color: #c4b5fd; }
+
+  .bl-icon-btn {
+    border: 1px solid var(--cb-gray-200);
+    background: var(--cb-bg);
+    color: var(--cb-gray-600);
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+
+  .bl-icon-btn:hover {
+    border-color: var(--cb-primary);
+    color: var(--cb-primary);
+  }
+
+  .bl-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--cb-gray-500);
+  }
+
+  .bl-empty-state > i {
+    font-size: 2.5rem;
+    color: #16a34a;
+    margin-bottom: 0.75rem;
+  }
+
+  .bl-detail-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 1040;
+  }
+
+  .bl-detail-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(560px, 100vw);
+    background: var(--cb-bg);
+    z-index: 1050;
+    transform: translateX(105%);
+    transition: transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -12px 0 40px rgba(15, 23, 42, 0.18);
+  }
+
+  .bl-detail-panel.open {
+    transform: translateX(0);
+  }
+
+  .bl-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem;
+    border-bottom: 1px solid var(--cb-gray-100);
+  }
+
+  .bl-detail-header h2 {
+    font-size: 1.1rem;
+    margin: 0.25rem 0 0;
+  }
+
+  .bl-detail-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .bl-detail-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .bl-detail-section h3 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--cb-gray-500);
+    margin-bottom: 0.5rem;
+  }
+
+  .bl-detail-value {
+    font-family: monospace;
+    font-size: 0.82rem;
+    overflow-wrap: anywhere;
+    background: var(--cb-bg-tertiary);
+    border-radius: 8px;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .bl-redirect-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .bl-redirect-hop {
+    border-left: 3px solid var(--cb-primary);
+    padding: 0.4rem 0.75rem;
+    background: var(--cb-bg-tertiary);
+    border-radius: 0 8px 8px 0;
+    font-family: monospace;
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+  }
+
+  .bl-related-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .bl-related-item {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--cb-gray-100);
+    border-radius: 8px;
+    font-size: 0.8rem;
+  }
+
+  .bl-related-item strong {
+    display: block;
+    font-family: monospace;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 575px) {
+    .filter-bar { justify-content: center; }
+    .filter-bar .bl-new-audit {
+      flex: 1 1 100%;
+      justify-content: center;
+      margin-left: 0;
+    }
+  }
+</style>
+
+<script src="/javascripts/notification.js"></script>
+<script src="/javascripts/broken-links.js"></script>
+
+<%- include('partials/footer') %>

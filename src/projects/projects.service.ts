@@ -6,7 +6,7 @@ import { Observable, Subject } from 'rxjs';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 export interface ComparisonResult {
   oldUrl: string;
@@ -85,7 +85,11 @@ export class ProjectsService {
     );
   }
 
-  private cacheReport(id: string, project: Project, report: ProjectReport): void {
+  private cacheReport(
+    id: string,
+    project: Project,
+    report: ProjectReport,
+  ): void {
     this.reportCacheById.set(id, report);
     this.reportCacheByUrlKey.set(
       this.getUrlCacheKey(project.oldSiteUrl, project.newSiteUrl),
@@ -108,7 +112,9 @@ export class ProjectsService {
     return (value || '').replace(/\s+/g, ' ').trim();
   }
 
-  private normalizeComparableList(values: string[] | null | undefined): string[] {
+  private normalizeComparableList(
+    values: string[] | null | undefined,
+  ): string[] {
     return (values || [])
       .map((value) => this.normalizeComparableValue(value))
       .filter(Boolean)
@@ -125,7 +131,11 @@ export class ProjectsService {
 
     while (pending.length > 0) {
       const current = pending.shift();
-      if (!current || current.depth > maxDepth || seenSitemaps.has(current.url)) {
+      if (
+        !current ||
+        current.depth > maxDepth ||
+        seenSitemaps.has(current.url)
+      ) {
         continue;
       }
 
@@ -174,7 +184,7 @@ export class ProjectsService {
           console.log(
             `[streamComparison] Cache miss for URL pair (Project ${id}). Starting live crawl.`,
           );
-            this.runComparisonStreaming(id, subject);
+          this.runComparisonStreaming(id, subject);
         }
       })
       .catch((err) => {
@@ -573,7 +583,9 @@ export class ProjectsService {
         const newH1 = this.normalizeComparableValue(newPage.h1);
         const oldCanonical = this.normalizeComparableValue(oldPage.canonical);
         const newCanonical = this.normalizeComparableValue(newPage.canonical);
-        const newRobots = this.normalizeComparableValue(newPage.robots).toLowerCase();
+        const newRobots = this.normalizeComparableValue(
+          newPage.robots,
+        ).toLowerCase();
 
         if (oldTitle && oldTitle !== newTitle) issues.push('Title mismatch');
         if (oldDesc && oldDesc !== newDesc) issues.push('Description mismatch');
@@ -612,8 +624,7 @@ export class ProjectsService {
           }
         }
 
-        if (newRobots.includes('noindex'))
-          issues.push('New page has noindex');
+        if (newRobots.includes('noindex')) issues.push('New page has noindex');
 
         if (oldTitle && !newTitle) issues.push('Missing Title on New');
         if (oldDesc && !newDesc) issues.push('Missing Description on New');
@@ -798,7 +809,7 @@ export class ProjectsService {
     ws['!cols'] = wscols;
 
     XLSX.utils.book_append_sheet(wb, ws, 'Crawl Report');
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
     const exportDir = path.join(process.cwd(), 'uploads', 'exports', sessionId);
     this.ensureDirectoryExists(exportDir);
 
@@ -815,7 +826,9 @@ export class ProjectsService {
             fs.rmSync(exportDir, { recursive: true, force: true });
           }
         } catch (error) {
-          this.logger.error(`Failed to clean export directory: ${error.message}`);
+          this.logger.error(
+            `Failed to clean export directory: ${error.message}`,
+          );
         }
       },
     };

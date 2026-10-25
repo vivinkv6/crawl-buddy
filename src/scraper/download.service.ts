@@ -336,7 +336,10 @@ export class DownloadService {
               archive.file(filePath, {
                 name: `${new URL(page.url).hostname}/${uniqueFileName}`,
               });
-              metadata.images.push({ url: resolvedUrl, fileName: uniqueFileName });
+              metadata.images.push({
+                url: resolvedUrl,
+                fileName: uniqueFileName,
+              });
             } catch (error) {
               metadata.failedImageDownloads.push({
                 url: imageUrl,
