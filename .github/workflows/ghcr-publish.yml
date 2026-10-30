@@ -66,8 +66,11 @@ jobs:
         env:
           COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        shell: bash
         run: |
-          if [ -z "$COOLIFY_WEBHOOK" ] || [ -z "$COOLIFY_TOKEN" ]; then
+          set -euo pipefail
+
+          if [[ -z "$COOLIFY_WEBHOOK" || -z "$COOLIFY_TOKEN" ]]; then
             echo "Coolify webhook/token not configured; skipping deploy trigger."
             exit 0
           fi
@@ -75,8 +78,27 @@ jobs:
           webhook="$(printf '%s' "$COOLIFY_WEBHOOK" | tr -d '\r\n')"
           token="$(printf '%s' "$COOLIFY_TOKEN" | tr -d '\r\n')"
 
-          echo "Triggering Coolify deployment..."
-          curl --fail --show-error --silent --request GET "$webhook" \
-            --header "Authorization: Bearer $token"
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
 
-          echo "Coolify deploy triggered"
+          echo "🚀 Triggering Coolify deployment..."
+
+          status_code=$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "Authorization: Bearer $token" \
+            --header "Accept: application/json" \
+            "$webhook")
+
+          echo "Coolify HTTP status: $status_code"
+
+          if [[ "$status_code" -lt 200 || "$status_code" -ge 300 ]]; then
+            echo "::error::Coolify deployment request failed."
+            cat "$response_file"
+            exit 1
+          fi
+
+          cat "$response_file"
+          echo
+          echo "✅ Coolify deployment accepted."
